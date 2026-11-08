@@ -169,11 +169,11 @@ The app starts with **standard privileges** by default:
 
 ### Run directly
 
-From the release directory:
+Download the latest stable version from the **Releases** page on the right, then double-click the file in File Explorer to run it.
 
-```powershell
-.\release\StartupManager.exe
-```
+**System Requirements:** `Microsoft Windows 10/11 64-bit`
+
+⚠️ Not yet verified whether it can run under the Prism translation layer on Windows on ARM (WOA).
 
 The `release` directory in this repository contains the **win-x64 self-contained single-file build**, so no separate .NET installation is required. On first launch the runtime is extracted, which may take a few seconds. Only a framework-dependent build requires the **.NET 10 Desktop Runtime**.
 
