@@ -1,0 +1,288 @@
+# Nightly build for Qihang / 启航.
+#
+# Design notes:
+# - The schedule is 00:00 UTC every day (08:00 Asia/Shanghai).
+# - A gate job compares the current commit with the last *successfully released*
+#   commit. The state is kept in an immutable Actions cache entry whose key is
+#   unique per run; restore-keys select the newest previous entry.
+# - The build job is skipped entirely when no source commit has changed, so it
+#   will not calculate a version, compile, or create a release.
+# - The state cache is written only after the release has been created
+#   successfully. A failed build or release therefore retries on the next run.
+
+name: Nightly Build
+
+on:
+  schedule:
+    # Every day at 00:00 UTC = 08:00 in Asia/Shanghai.
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+# Never let two nightly runs overlap on the same ref. Queue instead of cancelling.
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  # Required to create a release and upload its asset.
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # Gate: restore the last build's commit and decide whether to build at all.
+  # ---------------------------------------------------------------------------
+  check:
+    name: Check for source changes
+    runs-on: windows-latest
+    outputs:
+      should_build: ${{ steps.state.outputs.should_build }}
+      last_commit: ${{ steps.state.outputs.last_commit }}
+    steps:
+      - name: Restore last nightly build state
+        id: restore-state
+        uses: actions/cache/restore@v4
+        with:
+          # The state directory contains one small file: last-commit.
+          path: .nightly-state
+          # A unique key per run makes the cache immutable. The restore-keys
+          # prefix finds the most recent previous state for this branch.
+          key: nightly-state-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            nightly-state-${{ github.ref_name }}-
+
+      - name: Compare current commit with last successful build
+        id: state
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $stateFile = Join-Path $env:GITHUB_WORKSPACE '.nightly-state/last-commit'
+          $last = ''
+          if (Test-Path -LiteralPath $stateFile) {
+              $last = (Get-Content -LiteralPath $stateFile -Raw).Trim()
+          }
+
+          $current = $env:GITHUB_SHA
+          $shouldBuild = $last -ne $current
+
+          # Job outputs are consumed by the build job's `if:` expression.
+          "last_commit=$last" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "should_build=$($shouldBuild.ToString().ToLowerInvariant())" |
+              Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          if ($shouldBuild) {
+              Write-Output "Source changed: '$last' -> '$current'. Nightly build will run."
+          }
+          else {
+              Write-Output "No source changes since '$last'. Skipping the nightly build."
+              "### Nightly build skipped`n`nNo source changes since ``$last``. No version was calculated and no release was created." |
+                  Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          }
+
+  # ---------------------------------------------------------------------------
+  # Build: only runs when the gate found a new source commit.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build and publish nightly
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          # Full history is required for the changelog range.
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Calculate nightly version
+        id: version
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Use UTC because the workflow itself is scheduled in UTC. ISO year is
+          # used so the year, week and weekday always belong to the same ISO week
+          # (important around New Year).
+          $now = [DateTime]::UtcNow
+          $isoYear = [System.Globalization.ISOWeek]::GetYear($now)
+          $isoWeek = [System.Globalization.ISOWeek]::GetWeekOfYear($now)
+          $isoDay = [int]$now.DayOfWeek
+          if ($isoDay -eq 0) { $isoDay = 7 } # Sunday: .NET 0 -> ISO 7
+
+          # Format: YYwWWdD.NIGHTLY, e.g. 26w46d1.NIGHTLY.
+          $version = '{0:D2}w{1:D2}d{2}.NIGHTLY' -f ($isoYear % 100), $isoWeek, $isoDay
+
+          if ($version -notmatch '^\d{2}w\d{2}d[1-7]\.NIGHTLY$') {
+              throw "Calculated version '$version' does not match YYwWWdD.NIGHTLY."
+          }
+
+          Write-Output "Nightly version: $version"
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "### Nightly version`n`n**$version**" |
+              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+
+      - name: Generate changelog
+        shell: pwsh
+        env:
+          LAST_COMMIT: ${{ needs.check.outputs.last_commit }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $artifacts = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
+          New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
+
+          $last = $env:LAST_COMMIT
+          $hasLast = $false
+
+          # The previous commit may have disappeared after a force-push. Verify
+          # it exists; otherwise fall back to a bounded initial history.
+          if ($last) {
+              git cat-file -e "$last^{commit}" 2>$null
+              $hasLast = ($LASTEXITCODE -eq 0)
+          }
+
+          if ($hasLast) {
+              $heading = "Changes since the last nightly build"
+              $range = "$last..HEAD"
+          }
+          else {
+              $heading = "Commit history (initial nightly build)"
+              $range = "HEAD"
+          }
+
+          # Use full history for the range. For an initial build, cap the list to
+          # keep the release body reasonably sized.
+          $gitArgs = @('log', $range, '--pretty=format:- %h %s (%an)')
+          if (-not $hasLast) { $gitArgs += @('--max-count=200') }
+
+          $commits = @(& git @gitArgs)
+          if ($commits.Count -eq 0) { $commits = @('- No commits found') }
+
+          $body = @(
+              "# Nightly Build $env:VERSION",
+              '',
+              'Automated nightly build of Qihang / 启航.',
+              '',
+              "**Version:** $env:VERSION",
+              "**Commit:** $env:GITHUB_SHA",
+              "**Built at (UTC):** $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss'))",
+              '',
+              "## $heading",
+              ''
+          )
+          $body += $commits
+
+          if ($hasLast) {
+              $body += @(
+                  '',
+                  "**Full Changelog:** https://github.com/$env:GITHUB_REPOSITORY/compare/$last...$env:GITHUB_SHA"
+              )
+          }
+
+          $body | Set-Content -LiteralPath (Join-Path $artifacts 'release-notes.md') -Encoding utf8
+          Write-Output "Wrote changelog with $($commits.Count) commit line(s)."
+
+      - name: Publish self-contained single-file executable
+        shell: pwsh
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          # Keep the publish directory clean so the single-file output is
+          # deterministic and cannot be confused with an old artefact.
+          if (Test-Path -LiteralPath 'publish') {
+              Remove-Item -LiteralPath 'publish' -Recurse -Force
+          }
+
+          dotnet publish src/StartupManager/StartupManager.csproj `
+              -c Release `
+              -r win-x64 `
+              --self-contained true `
+              -p:PublishSingleFile=true `
+              -p:IncludeAllContentForSelfExtract=true `
+              -o publish
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet publish failed with exit code $LASTEXITCODE."
+          }
+
+          $source = Join-Path 'publish' 'StartupManager.exe'
+          if (-not (Test-Path -LiteralPath $source)) {
+              throw "Expected publish output '$source' was not produced."
+          }
+
+          $artifacts = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
+          New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
+          $asset = Join-Path $artifacts "StartupManager-$env:VERSION.exe"
+          Copy-Item -LiteralPath $source -Destination $asset -Force
+
+          if (-not (Test-Path -LiteralPath $asset)) {
+              throw "Nightly asset '$asset' was not created."
+          }
+
+          Write-Output "Created nightly asset: $asset"
+
+      - name: Create GitHub pre-release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          # If a nightly release with the same day's tag already exists (for
+          # example after a manual re-run), replace only a pre-release. Never
+          # overwrite a stable release with the same tag.
+          $tag = $env:VERSION
+          $asset = "artifacts/StartupManager-$tag.exe"
+          $notes = "artifacts/release-notes.md"
+
+          if (-not (Test-Path -LiteralPath $asset)) { throw "Asset '$asset' is missing." }
+          if (-not (Test-Path -LiteralPath $notes)) { throw "Release notes '$notes' are missing." }
+
+          $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isPrerelease 2>$null
+          if ($LASTEXITCODE -eq 0) {
+              $info = $existing | ConvertFrom-Json
+              if (-not $info.isPrerelease) {
+                  throw "Release '$tag' exists and is not a pre-release. Refusing to overwrite it."
+              }
+
+              Write-Output "Replacing existing pre-release '$tag'."
+              gh release delete $tag --repo $env:GITHUB_REPOSITORY --yes --cleanup-tag
+              if ($LASTEXITCODE -ne 0) { throw "Could not delete the existing pre-release '$tag'." }
+          }
+
+          gh release create $tag $asset `
+              --repo $env:GITHUB_REPOSITORY `
+              --target $env:GITHUB_SHA `
+              --title "Nightly Build - $tag" `
+              --notes-file $notes `
+              --prerelease
+
+          if ($LASTEXITCODE -ne 0) { throw "gh release create failed for '$tag'." }
+          Write-Output "Created pre-release '$tag' with asset '$asset'."
+
+      - name: Record last successful nightly commit
+        if: success()
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          New-Item -ItemType Directory -Force -Path '.nightly-state' | Out-Null
+          Set-Content -LiteralPath '.nightly-state/last-commit' -Value $env:GITHUB_SHA -Encoding ascii
+
+      - name: Save nightly build state
+        if: success()
+        uses: actions/cache/save@v4
+        with:
+          path: .nightly-state
+          key: nightly-state-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
