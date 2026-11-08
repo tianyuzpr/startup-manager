@@ -1,0 +1,552 @@
+<Window x:Class="StartupManager.Dialogs.AddEntryWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:StartupManager.Localization"
+
+        Title="{loc:Loc 新增启动项}"
+        Width="780"
+        Height="830"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{DynamicResource InkBrush}"
+        Loaded="Window_Loaded">
+    <Window.Resources>
+        <Style x:Key="ChoiceCard" TargetType="{x:Type RadioButton}">
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="11"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PanelBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SoftAccentBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="1.5" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False">
+                                <Setter Property="Opacity" Value="0.42" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+
+        <Style x:Key="ModeCard" TargetType="{x:Type RadioButton}" BasedOn="{StaticResource ChoiceCard}">
+            <Setter Property="Padding" Value="12,10" />
+            <Setter Property="Margin" Value="0,0,0,7" />
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="22">
+        <Border Background="{DynamicResource PanelBrush}"
+                CornerRadius="20"
+                BorderBrush="{DynamicResource LineBrush}"
+                BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="36"
+                                  ShadowDepth="10"
+                                  Opacity="0.24"
+                                  Color="{DynamicResource DialogShadowColor}" />
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <!-- Title -->
+                <Grid Grid.Row="0"
+                      Margin="26,20,16,12"
+                      MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                      Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Loc 新增启动项}" FontSize="19" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Loc 脚本、程序或标准 Windows 服务，都可以交给启航托管。}"
+                                   FontSize="10.5"
+                                   Foreground="{DynamicResource MutedBrush}"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Style="{StaticResource WindowControlButton}"
+                            Width="34"
+                            Height="30"
+                            Click="Cancel_Click">
+                        <TextBlock Text="&#xE8BB;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="10" />
+                    </Button>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Foreground="{DynamicResource InkBrush}"
+                              Padding="26,0,20,0">
+                    <StackPanel Margin="0,4,6,8">
+                        <!-- Name -->
+                        <TextBlock Text="{loc:Loc 项目名称}" Style="{StaticResource SectionText}" />
+                        <TextBox x:Name="NameBox"
+                                 Style="{StaticResource InputTextBox}"
+                                 Margin="0,8,0,0"
+                                 MaxLength="80"
+                                 Tag="{loc:Loc 例如：家庭 NAS 同步助手}" />
+                        <TextBlock Text="{loc:Loc 用于在列表中识别该项目，也会作为计划任务和注册表值的名称。}"
+                                   Style="{StaticResource CaptionText}"
+                                   Margin="2,6,0,0" />
+
+                        <!-- Type -->
+                        <TextBlock Text="{loc:Loc 启动类型}"
+                                   Style="{StaticResource SectionText}"
+                                   Margin="0,20,0,0" />
+                        <Grid Margin="0,8,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+
+                            <RadioButton x:Name="TypePowerShell"
+                                         Grid.Column="0"
+                                         GroupName="EntryType"
+                                         Style="{StaticResource ChoiceCard}"
+                                         IsChecked="True"
+                                         Checked="Type_Changed">
+                                <StackPanel>
+                                    <Border Width="34"
+                                            Height="34"
+                                            CornerRadius="9"
+                                            Background="{DynamicResource KindServiceSoftBrush}"
+                                            HorizontalAlignment="Left">
+                                        <TextBlock Text="PS"
+                                                   Foreground="{DynamicResource AccentDeepBrush}"
+                                                   FontSize="10"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="PowerShell"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Margin="0,9,0,0" />
+                                    <TextBlock Text="{loc:Loc 编写 .ps1 脚本}"
+                                               FontSize="9.5"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="TypeCmd"
+                                         Grid.Column="2"
+                                         GroupName="EntryType"
+                                         Style="{StaticResource ChoiceCard}"
+                                         Checked="Type_Changed">
+                                <StackPanel>
+                                    <Border Width="34"
+                                            Height="34"
+                                            CornerRadius="9"
+                                            Background="{DynamicResource KindStartupSoftBrush}"
+                                            HorizontalAlignment="Left">
+                                        <TextBlock Text="CMD"
+                                                   Foreground="{DynamicResource TealBrush}"
+                                                   FontSize="8.5"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{loc:Loc CMD 脚本}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Margin="0,9,0,0" />
+                                    <TextBlock Text="{loc:Loc 编写 .cmd 脚本}"
+                                               FontSize="9.5"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </RadioButton>
+
+                            <RadioButton x:Name="TypeExe"
+                                         Grid.Column="4"
+                                         GroupName="EntryType"
+                                         Style="{StaticResource ChoiceCard}"
+                                         Checked="Type_Changed">
+                                <StackPanel>
+                                    <Border Width="34"
+                                            Height="34"
+                                            CornerRadius="9"
+                                            Background="{DynamicResource SoftOrangeBrush}"
+                                            HorizontalAlignment="Left">
+                                        <TextBlock Text="EXE"
+                                                   Foreground="{DynamicResource OrangeBrush}"
+                                                   FontSize="8.5"
+                                                   FontWeight="Bold"
+                                                   HorizontalAlignment="Center"
+                                                   VerticalAlignment="Center" />
+                                    </Border>
+                                    <TextBlock Text="{loc:Loc 可执行文件}"
+                                               FontSize="12"
+                                               FontWeight="SemiBold"
+                                               Margin="0,9,0,0" />
+                                    <TextBlock Text="{loc:Loc 运行 .exe 程序}"
+                                               FontSize="9.5"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </RadioButton>
+                        </Grid>
+
+                        <!-- Script editor -->
+                        <StackPanel x:Name="ScriptSection" Margin="0,20,0,0">
+                            <Grid>
+                                <TextBlock Text="{loc:Loc 脚本内容}" Style="{StaticResource SectionText}" VerticalAlignment="Center" />
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                                    <Button Content="{loc:Loc 插入示例}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            FontSize="10"
+                                            Padding="9,5"
+                                            Click="InsertSample_Click" />
+                                    <Button Content="{loc:Loc 从文件导入}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            FontSize="10"
+                                            Padding="9,5"
+                                            Margin="6,0,0,0"
+                                            Click="ImportScript_Click" />
+                                </StackPanel>
+                            </Grid>
+                            <StackPanel x:Name="PowerShellHostSection"
+                                        Margin="0,10,0,0"
+                                        Visibility="Collapsed">
+                                <TextBlock Text="{loc:Loc PowerShell 版本}"
+                                           Style="{StaticResource SectionText}"
+                                           FontSize="12" />
+                                <TextBlock Text="{loc:Loc 检测到多个 PowerShell，请选择启动脚本时使用的版本。}"
+                                           Style="{StaticResource CaptionText}"
+                                           Margin="2,4,0,0" />
+                                <WrapPanel x:Name="PowerShellHostPanel"
+                                           Margin="0,8,0,0" />
+                            </StackPanel>
+                            <Border Background="{DynamicResource CodeEditorBackgroundBrush}"
+                                    BorderBrush="{DynamicResource CodeEditorBorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="11"
+                                    Margin="0,8,0,0">
+                                <Grid>
+                                    <TextBox x:Name="ScriptBox"
+                                             Background="Transparent"
+                                             Foreground="{DynamicResource CodeEditorForegroundBrush}"
+                                             CaretBrush="{DynamicResource CodeEditorCaretBrush}"
+                                             BorderThickness="0"
+                                             Padding="13,11"
+                                             Height="176"
+                                             AcceptsReturn="True"
+                                             AcceptsTab="True"
+                                             TextWrapping="NoWrap"
+                                             VerticalScrollBarVisibility="Auto"
+                                             HorizontalScrollBarVisibility="Auto"
+                                             FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                             FontSize="11.5" />
+                                    <TextBlock Text="{loc:Loc 在这里编写脚本…}"
+                                               Foreground="{DynamicResource CodeEditorHintBrush}"
+                                               FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                               FontSize="11.5"
+                                               Margin="14,12,0,0"
+                                               IsHitTestVisible="False">
+                                        <TextBlock.Style>
+                                            <Style TargetType="{x:Type TextBlock}">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Text, ElementName=ScriptBox}" Value="">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </Grid>
+                            </Border>
+                            <Grid Margin="2,7,0,0">
+                                <TextBlock x:Name="ScriptHint"
+                                           Text="{loc:Loc 脚本会保存到本地，并以隐藏窗口方式运行。}"
+                                           Style="{StaticResource CaptionText}"
+                                           TextWrapping="Wrap"
+                                           Margin="0,0,100,0" />
+                                <CheckBox x:Name="RunHiddenCheck"
+                                          Content="{loc:Loc 隐藏窗口}"
+                                          IsChecked="True"
+                                          HorizontalAlignment="Right"
+                                          FontSize="10.5"
+                                          Foreground="{DynamicResource MutedBrush}" />
+                            </Grid>
+                        </StackPanel>
+
+                        <!-- Executable -->
+                        <StackPanel x:Name="ExecutableSection" Margin="0,20,0,0" Visibility="Collapsed">
+                            <TextBlock Text="{loc:Loc 可执行文件}" Style="{StaticResource SectionText}" />
+                            <Grid Margin="0,8,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <TextBox x:Name="ExePathBox"
+                                         Style="{StaticResource InputTextBox}"
+                                         IsReadOnly="True"
+                                         Tag="{loc:Loc 尚未选择文件}" />
+                                <Button Grid.Column="1"
+                                        Content="{loc:Loc 浏览…}"
+                                        Style="{StaticResource SecondaryButton}"
+                                        FontSize="11"
+                                        Padding="14,9"
+                                        Margin="8,0,0,0"
+                                        Click="BrowseExe_Click" />
+                            </Grid>
+
+                            <TextBlock Text="{loc:Loc 启动参数（可选）}"
+                                       Style="{StaticResource SectionText}"
+                                       Margin="0,16,0,0" />
+                            <TextBox x:Name="ArgumentsBox"
+                                     Style="{StaticResource InputTextBox}"
+                                     Margin="0,8,0,0"
+                                     Tag="{loc:Loc 例如：--background --profile work}" />
+
+                            <CheckBox x:Name="StartServiceCheck"
+                                      Content="{loc:Loc 创建后立即启动服务}"
+                                      IsChecked="False"
+                                      Margin="2,14,0,0"
+                                      FontSize="11"
+                                      Foreground="{DynamicResource MutedBrush}"
+                                      Visibility="Collapsed" />
+                        </StackPanel>
+
+                        <!-- Startup mode -->
+                        <TextBlock Text="{loc:Loc 启动方式}"
+                                   Style="{StaticResource SectionText}"
+                                   Margin="0,20,0,0" />
+                        <StackPanel Margin="0,8,0,0">
+                            <RadioButton x:Name="ModeCurrentUser"
+                                         GroupName="StartupMode"
+                                         Style="{StaticResource ModeCard}"
+                                         IsChecked="True"
+                                         Checked="Mode_Changed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="34" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE77B;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource AccentDeepBrush}"
+                                               VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Margin="9,0,0,0">
+                                        <TextBlock Text="{loc:Loc 登录时启动 · 当前用户}" FontSize="11.5" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:Loc 写入当前用户的 Run 注册表项，不需要管理员权限。}"
+                                                   FontSize="9.5"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2"
+                                            Background="{DynamicResource SoftSuccessBrush}"
+                                            CornerRadius="6"
+                                            Padding="7,3"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 推荐}" Foreground="{DynamicResource SuccessBrush}" FontSize="9" />
+                                    </Border>
+                                </Grid>
+                            </RadioButton>
+
+                            <RadioButton x:Name="ModeAllUsers"
+                                         GroupName="StartupMode"
+                                         Style="{StaticResource ModeCard}"
+                                         Checked="Mode_Changed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="34" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE716;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource OrangeBrush}"
+                                               VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Margin="9,0,0,0">
+                                        <TextBlock Text="{loc:Loc 登录时启动 · 所有用户}" FontSize="11.5" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:Loc 写入 HKLM Run，需要管理员权限；任意用户登录都会启动。}"
+                                                   FontSize="9.5"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2"
+                                            Background="{DynamicResource SoftWarningBrush}"
+                                            CornerRadius="6"
+                                            Padding="7,3"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 需管理员}" Foreground="{DynamicResource WarningBrush}" FontSize="9" />
+                                    </Border>
+                                </Grid>
+                            </RadioButton>
+
+                            <RadioButton x:Name="ModeSystemTask"
+                                         GroupName="StartupMode"
+                                         Style="{StaticResource ModeCard}"
+                                         Checked="Mode_Changed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="34" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE7E8;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource PurpleBrush}"
+                                               VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Margin="9,0,0,0">
+                                        <TextBlock Text="{loc:Loc 系统启动任务 · SYSTEM}" FontSize="11.5" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:Loc 创建开机触发的计划任务，在用户登录前以 SYSTEM 身份运行。}"
+                                                   FontSize="9.5"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2"
+                                            Background="{DynamicResource SoftWarningBrush}"
+                                            CornerRadius="6"
+                                            Padding="7,3"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 需管理员}" Foreground="{DynamicResource WarningBrush}" FontSize="9" />
+                                    </Border>
+                                </Grid>
+                            </RadioButton>
+
+                            <RadioButton x:Name="ModeService"
+                                         GroupName="StartupMode"
+                                         Style="{StaticResource ModeCard}"
+                                         Checked="Mode_Changed">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="34" />
+                                        <ColumnDefinition Width="*" />
+                                        <ColumnDefinition Width="Auto" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="&#xE950;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="16"
+                                               Foreground="{DynamicResource TealBrush}"
+                                               VerticalAlignment="Center" />
+                                    <StackPanel Grid.Column="1" Margin="9,0,0,0">
+                                        <TextBlock Text="{loc:Loc 安装为 Windows 服务}" FontSize="11.5" FontWeight="SemiBold" />
+                                        <TextBlock Text="{loc:Loc 仅支持 EXE。普通桌面程序通常不能作为服务运行，请谨慎选择。}"
+                                                   FontSize="9.5"
+                                                   Foreground="{DynamicResource MutedBrush}"
+                                                   TextWrapping="Wrap"
+                                                   Margin="0,3,0,0" />
+                                    </StackPanel>
+                                    <Border Grid.Column="2"
+                                            Background="{DynamicResource SoftWarningBrush}"
+                                            CornerRadius="6"
+                                            Padding="7,3"
+                                            VerticalAlignment="Center">
+                                        <TextBlock Text="{loc:Loc 仅 EXE}" Foreground="{DynamicResource WarningBrush}" FontSize="9" />
+                                    </Border>
+                                </Grid>
+                            </RadioButton>
+                        </StackPanel>
+
+                        <Border x:Name="ModeWarning"
+                                Background="{DynamicResource WarningBackgroundBrush}"
+                                BorderBrush="{DynamicResource WarningBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="11,9"
+                                Margin="0,6,0,0"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="ModeWarningText"
+                                       FontSize="10"
+                                       Foreground="{DynamicResource WarningTextBrush}"
+                                       TextWrapping="Wrap"
+                                       LineHeight="16" />
+                        </Border>
+
+                        <Border x:Name="ErrorBanner"
+                                Background="{DynamicResource ErrorBackgroundBrush}"
+                                BorderBrush="{DynamicResource ErrorBorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="10"
+                                Padding="11,9"
+                                Margin="0,14,0,0"
+                                Visibility="Collapsed">
+                            <TextBlock x:Name="ErrorText"
+                                       FontSize="10.5"
+                                       Foreground="{DynamicResource ErrorTextBrush}"
+                                       TextWrapping="Wrap"
+                                       LineHeight="17" />
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- Footer -->
+                <Grid Grid.Row="2" Margin="26,14,26,22">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="&#xE72E;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource SubtleBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="{loc:Loc 所有操作均在本地完成}"
+                                   FontSize="9.5"
+                                   Foreground="{DynamicResource SubtleBrush}"
+                                   Margin="5,0,0,0"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Content="{loc:Loc 取消}"
+                            Style="{StaticResource SecondaryButton}"
+                            Padding="20,9"
+                            Click="Cancel_Click" />
+                    <Button x:Name="CreateButton"
+                            Grid.Column="2"
+                            Content="{loc:Loc 创建启动项}"
+                            Style="{StaticResource PrimaryButton}"
+                            Padding="22,9"
+                            Margin="9,0,0,0"
+                            Click="Create_Click" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

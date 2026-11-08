@@ -1,0 +1,142 @@
+<Window x:Class="StartupManager.Dialogs.ConfirmDialog"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:StartupManager.Localization"
+
+        Title="{loc:Loc 确认操作}"
+        Width="492"
+        SizeToContent="Height"
+        MaxHeight="620"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{DynamicResource InkBrush}">
+    <Grid Margin="22">
+        <Border Background="{DynamicResource PanelBrush}"
+                CornerRadius="18"
+                BorderBrush="{DynamicResource LineBrush}"
+                BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="32"
+                                  ShadowDepth="8"
+                                  Opacity="0.22"
+                                  Color="{DynamicResource DialogShadowColor}" />
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0"
+                      Background="Transparent"
+                      MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                      Margin="24,18,14,0">
+                    <TextBlock Text="{loc:Loc 操作确认}"
+                               FontSize="10"
+                               Foreground="{DynamicResource SubtleBrush}"
+                               VerticalAlignment="Center" />
+                    <Button HorizontalAlignment="Right"
+                            Style="{StaticResource WindowControlButton}"
+                            Width="32"
+                            Height="28"
+                            Click="Cancel_Click">
+                        <TextBlock Text="&#xE8BB;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="10" />
+                    </Button>
+                </Grid>
+
+                <StackPanel Grid.Row="1" Margin="24,16,24,0">
+                    <StackPanel Orientation="Horizontal">
+                        <Border x:Name="IconBadge"
+                                Width="48"
+                                Height="48"
+                                CornerRadius="14"
+                                Background="{DynamicResource SoftDangerBrush}">
+                            <TextBlock x:Name="IconGlyph"
+                                       Text="&#xE7BA;"
+                                       FontFamily="{StaticResource IconFont}"
+                                       FontSize="21"
+                                       Foreground="{DynamicResource DangerBrush}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center" />
+                        </Border>
+                        <TextBlock x:Name="HeadingText"
+                                   FontSize="17"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="14,0,0,0"
+                                   TextWrapping="Wrap"
+                                   MaxWidth="350" />
+                    </StackPanel>
+
+                    <TextBlock x:Name="MessageText"
+                               FontSize="12"
+                               Foreground="{DynamicResource MutedBrush}"
+                               TextWrapping="Wrap"
+                               LineHeight="20"
+                               Margin="0,16,0,0" />
+
+                    <Border x:Name="DetailBox"
+                            Background="{DynamicResource PanelSecondaryBrush}"
+                            BorderBrush="{DynamicResource PanelSecondaryBorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="10"
+                            Padding="12"
+                            Margin="0,14,0,0"
+                            Visibility="Collapsed">
+                        <TextBlock x:Name="DetailText"
+                                   FontSize="10.5"
+                                   Foreground="{DynamicResource CodeTextBrush}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="17" />
+                    </Border>
+
+                    <StackPanel x:Name="PhrasePanel" Margin="0,16,0,0" Visibility="Collapsed">
+                        <TextBlock x:Name="PhraseLabel"
+                                   FontSize="11"
+                                   Foreground="{DynamicResource MutedBrush}"
+                                   TextWrapping="Wrap" />
+                        <TextBox x:Name="PhraseBox"
+                                 Style="{StaticResource InputTextBox}"
+                                 Margin="0,8,0,0"
+                                 FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                 TextChanged="PhraseBox_TextChanged" />
+                        <TextBlock x:Name="PhraseError"
+                                   FontSize="10"
+                                   Foreground="{DynamicResource DangerBrush}"
+                                   Margin="2,6,0,0"
+                                   Visibility="Collapsed" />
+                    </StackPanel>
+                </StackPanel>
+
+                <Grid Grid.Row="2" Margin="24,22,24,22">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Button x:Name="CancelButton"
+                            Grid.Column="1"
+                            Content="{loc:Loc 取消}"
+                            Style="{StaticResource SecondaryButton}"
+                            Padding="18,9"
+                            Click="Cancel_Click" />
+                    <Button x:Name="ConfirmButton"
+                            Grid.Column="2"
+                            Content="{loc:Loc 确认}"
+                            Style="{StaticResource PrimaryButton}"
+                            Padding="18,9"
+                            Margin="9,0,0,0"
+                            Click="Confirm_Click" />
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>

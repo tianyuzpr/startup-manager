@@ -1,0 +1,304 @@
+<Window x:Class="StartupManager.Dialogs.SettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:loc="clr-namespace:StartupManager.Localization"
+        Title="{loc:Loc 设置}"
+        Width="780"
+        Height="790"
+        WindowStyle="None"
+        AllowsTransparency="True"
+        Background="Transparent"
+        ResizeMode="NoResize"
+        ShowInTaskbar="False"
+        WindowStartupLocation="CenterOwner"
+        FontFamily="{StaticResource UiFont}"
+        Foreground="{DynamicResource InkBrush}">
+    <Window.Resources>
+        <Style x:Key="ChoiceCard" TargetType="{x:Type RadioButton}">
+            <Setter Property="Foreground" Value="{DynamicResource InkBrush}" />
+            <Setter Property="Background" Value="{DynamicResource InputBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource LineBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="Padding" Value="12" />
+            <Setter Property="Cursor" Value="Hand" />
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="{x:Type RadioButton}">
+                        <Border x:Name="Bd"
+                                Background="{TemplateBinding Background}"
+                                BorderBrush="{TemplateBinding BorderBrush}"
+                                BorderThickness="{TemplateBinding BorderThickness}"
+                                CornerRadius="11"
+                                Padding="{TemplateBinding Padding}">
+                            <ContentPresenter />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource PanelBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsChecked" Value="True">
+                                <Setter TargetName="Bd" Property="Background" Value="{DynamicResource SoftAccentBrush}" />
+                                <Setter TargetName="Bd" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                <Setter TargetName="Bd" Property="BorderThickness" Value="1.5" />
+                            </Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+        </Style>
+    </Window.Resources>
+
+    <Grid Margin="22">
+        <Border Background="{DynamicResource PanelBrush}"
+                CornerRadius="20"
+                BorderBrush="{DynamicResource LineBrush}"
+                BorderThickness="1">
+            <Border.Effect>
+                <DropShadowEffect BlurRadius="36"
+                                  ShadowDepth="10"
+                                  Opacity="0.24"
+                                  Color="{DynamicResource DialogShadowColor}" />
+            </Border.Effect>
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Grid Grid.Row="0"
+                      Margin="26,20,16,12"
+                      MouseLeftButtonDown="TitleBar_MouseLeftButtonDown"
+                      Background="Transparent">
+                    <StackPanel>
+                        <TextBlock Text="{loc:Loc 设置}" FontSize="19" FontWeight="SemiBold" />
+                        <TextBlock Text="{loc:Loc 语言、外观和系统服务保护。}"
+                                   FontSize="10.5"
+                                   Foreground="{DynamicResource MutedBrush}"
+                                   Margin="0,4,0,0" />
+                    </StackPanel>
+                    <Button HorizontalAlignment="Right"
+                            VerticalAlignment="Top"
+                            Style="{StaticResource WindowControlButton}"
+                            Width="34"
+                            Height="30"
+                            Click="Cancel_Click">
+                        <TextBlock Text="&#xE8BB;"
+                                   FontFamily="{StaticResource IconFont}"
+                                   FontSize="10" />
+                    </Button>
+                </Grid>
+
+                <ScrollViewer Grid.Row="1"
+                              VerticalScrollBarVisibility="Auto"
+                              HorizontalScrollBarVisibility="Disabled"
+                              Foreground="{DynamicResource InkBrush}"
+                              Padding="26,0,20,0">
+                    <StackPanel Margin="0,4,6,10">
+                        <!-- Language -->
+                        <TextBlock Text="{loc:Loc 语言}" Style="{StaticResource SectionText}" />
+                        <TextBlock Text="{loc:Loc 界面语言}"
+                                   Style="{StaticResource CaptionText}"
+                                   Margin="2,5,0,0" />
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <RadioButton x:Name="LanguageChinese"
+                                         GroupName="SettingsLanguage"
+                                         Style="{StaticResource ChoiceCard}"
+                                         AutomationProperties.Name="简体中文"
+                                         Grid.Column="0">
+                                <StackPanel>
+                                    <TextBlock Text="简体中文" FontSize="12.5" FontWeight="SemiBold" />
+                                    <TextBlock Text="Chinese (Simplified)"
+                                               FontSize="10"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="LanguageEnglish"
+                                         GroupName="SettingsLanguage"
+                                         Style="{StaticResource ChoiceCard}"
+                                         AutomationProperties.Name="English (United Kingdom)"
+                                         Grid.Column="2">
+                                <StackPanel>
+                                    <TextBlock Text="English (United Kingdom)"
+                                               FontSize="12.5"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="British English"
+                                               FontSize="10"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                            </RadioButton>
+                        </Grid>
+
+                        <!-- Appearance -->
+                        <TextBlock Text="{loc:Loc 显示模式}"
+                                   Style="{StaticResource SectionText}"
+                                   Margin="0,24,0,0" />
+                        <TextBlock Text="{loc:Loc 选择窗口的亮色、暗黑或跟随系统外观。}"
+                                   Style="{StaticResource CaptionText}"
+                                   Margin="2,5,0,0" />
+                        <Grid Margin="0,10,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="8" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <RadioButton x:Name="ThemeLight"
+                                         GroupName="SettingsTheme"
+                                         Style="{StaticResource ChoiceCard}"
+                                         Grid.Column="0"
+                                         Content="{loc:Loc 浅色模式}" />
+                            <RadioButton x:Name="ThemeDark"
+                                         GroupName="SettingsTheme"
+                                         Style="{StaticResource ChoiceCard}"
+                                         Grid.Column="2"
+                                         Content="{loc:Loc 暗黑模式}" />
+                            <RadioButton x:Name="ThemeSystem"
+                                         GroupName="SettingsTheme"
+                                         Style="{StaticResource ChoiceCard}"
+                                         Grid.Column="4"
+                                         Content="{loc:Loc 跟随系统}" />
+                        </Grid>
+                        <TextBlock Text="{loc:Loc 跟随 Windows 的亮色/暗黑设置。}"
+                                   Style="{StaticResource CaptionText}"
+                                   Margin="2,7,0,0" />
+
+                        <!-- Danger mode -->
+                        <Button x:Name="DangerHeaderButton"
+                                Style="{StaticResource SecondaryButton}"
+                                AutomationProperties.Name="{loc:Loc 危险模式}"
+                                HorizontalContentAlignment="Stretch"
+                                Padding="14,12"
+                                Margin="0,24,0,0"
+                                Click="DangerHeader_Click">
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="Auto" />
+                                </Grid.ColumnDefinitions>
+                                <Border Width="30"
+                                        Height="30"
+                                        CornerRadius="9"
+                                        Background="{DynamicResource SoftDangerBrush}"
+                                        VerticalAlignment="Center">
+                                    <TextBlock Text="&#xE7BA;"
+                                               FontFamily="{StaticResource IconFont}"
+                                               FontSize="14"
+                                               Foreground="{DynamicResource DangerBrush}"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                                    <TextBlock Text="{loc:Loc 危险模式}"
+                                               FontSize="12.5"
+                                               FontWeight="SemiBold" />
+                                    <TextBlock Text="{loc:Loc 编辑受保护服务名单，并控制系统服务删除保护。}"
+                                               FontSize="10"
+                                               Foreground="{DynamicResource MutedBrush}"
+                                               Margin="0,3,0,0" />
+                                </StackPanel>
+                                <TextBlock x:Name="DangerChevron"
+                                           Grid.Column="2"
+                                           Text="&#xE70D;"
+                                           FontFamily="{StaticResource IconFont}"
+                                           FontSize="12"
+                                           Foreground="{DynamicResource MutedBrush}"
+                                           VerticalAlignment="Center" />
+                            </Grid>
+                        </Button>
+
+                        <Border x:Name="DangerContent"
+                                Visibility="Collapsed"
+                                Background="{DynamicResource SoftDangerBrush}"
+                                BorderBrush="{DynamicResource DangerBrush}"
+                                BorderThickness="1"
+                                CornerRadius="12"
+                                Padding="16,14"
+                                Margin="0,8,0,0">
+                            <StackPanel>
+                                <TextBlock Text="{loc:Loc 以下设置会降低系统安全性，请仅在明确了解后果时修改。}"
+                                           FontSize="11"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource DangerBrush}" />
+                                <TextBlock Text="{loc:Loc 此名单只控制系统服务的删除保护，不会停止或禁用任何服务。}"
+                                           FontSize="10"
+                                           Foreground="{DynamicResource MutedBrush}"
+                                           Margin="0,5,0,0"
+                                           TextWrapping="Wrap" />
+
+                                <CheckBox x:Name="RefuseDeleteCheck"
+                                          Content="{loc:Loc 拒绝删除系统服务}"
+                                          Margin="0,14,0,0"
+                                          FontSize="11.5" />
+                                <TextBlock Text="{loc:Loc 开启后，受保护的系统服务不能被删除。}"
+                                           Style="{StaticResource CaptionText}"
+                                           Margin="24,4,0,0" />
+
+                                <TextBlock Text="{loc:Loc 受保护的系统服务}"
+                                           Style="{StaticResource SectionText}"
+                                           FontSize="12"
+                                           Margin="0,18,0,0" />
+                                <TextBlock Text="{loc:Loc 每行一个服务名（不是显示名）。}"
+                                           Style="{StaticResource CaptionText}"
+                                           Margin="2,4,0,0" />
+                                <TextBox x:Name="ProtectedServicesBox"
+                                         Style="{StaticResource InputTextBox}"
+                                         AcceptsReturn="True"
+                                         TextWrapping="NoWrap"
+                                         VerticalScrollBarVisibility="Auto"
+                                         HorizontalScrollBarVisibility="Auto"
+                                         Height="210"
+                                         Margin="0,8,0,0"
+                                         Padding="11,9"
+                                         FontFamily="Cascadia Mono, Consolas, Microsoft YaHei UI"
+                                         FontSize="10.5" />
+                                <Grid Margin="0,8,0,0">
+                                    <TextBlock Text="{loc:Loc 恢复默认名单会重新保护 Windows 核心服务。}"
+                                               Style="{StaticResource CaptionText}"
+                                               VerticalAlignment="Center" />
+                                    <Button Content="{loc:Loc 恢复默认名单}"
+                                            Style="{StaticResource SecondaryButton}"
+                                            FontSize="10"
+                                            Padding="9,5"
+                                            HorizontalAlignment="Right"
+                                            Click="RestoreDefaults_Click" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <Grid Grid.Row="2" Margin="26,10,26,20">
+                    <TextBlock x:Name="ErrorText"
+                               Foreground="{DynamicResource DangerBrush}"
+                               FontSize="10.5"
+                               VerticalAlignment="Center"
+                               TextWrapping="Wrap"
+                               Margin="0,0,150,0" />
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                        <Button Content="{loc:Loc 取消}"
+                                Style="{StaticResource SecondaryButton}"
+                                MinWidth="88"
+                                Click="Cancel_Click" />
+                        <Button Content="{loc:Loc 保存}"
+                                Style="{StaticResource PrimaryButton}"
+                                MinWidth="100"
+                                Margin="8,0,0,0"
+                                Click="Save_Click" />
+                    </StackPanel>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
