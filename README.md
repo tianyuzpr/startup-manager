@@ -169,11 +169,10 @@
 
 ### 直接运行
 
-发布目录中执行：
+在右侧的`Releases`页面中下载最新的稳定版，然后在文件资源管理器中双击即可运行。
 
-```powershell
-.\release\StartupManager.exe
-```
+系统要求：`Microsoft Windows 10/11 64位`
+⚠️ 未验证是否能在 Windows on ARM (WOA) 的 Prism 转译层中的运行情况。
 
 本仓库的 `release` 是 **win-x64 自包含单文件版本**，不需要额外安装 .NET；首次启动会解压运行时，可能需要等待几秒。重新构建 framework-dependent 版本时，才需要安装 **.NET 10 Desktop Runtime**。
 
