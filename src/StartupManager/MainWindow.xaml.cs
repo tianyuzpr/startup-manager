@@ -286,10 +286,27 @@ public partial class MainWindow : Window
 
         try
         {
+            // Explorer lives in %WINDIR%, not %WINDIR%\System32. Using
+            // Environment.SystemDirectory here produces a non-existent
+            // C:\Windows\System32\explorer.exe.
+            var windowsDirectory = Environment.GetFolderPath(Environment.SpecialFolder.Windows);
+            var explorerPath = Path.Combine(windowsDirectory, "explorer.exe");
+
+            // Do not inherit the process current directory. If the app was
+            // started from a publish folder that has since been deleted, the
+            // inherited working directory no longer exists and Process.Start
+            // fails before Explorer is launched.
+            var workingDirectory = Path.GetDirectoryName(path);
+            if (string.IsNullOrWhiteSpace(workingDirectory) || !Directory.Exists(workingDirectory))
+            {
+                workingDirectory = windowsDirectory;
+            }
+
             Process.Start(new ProcessStartInfo
             {
-                FileName = Path.Combine(Environment.SystemDirectory, "explorer.exe"),
+                FileName = explorerPath,
                 Arguments = $"/select,\"{path}\"",
+                WorkingDirectory = workingDirectory,
                 UseShellExecute = true
             });
         }

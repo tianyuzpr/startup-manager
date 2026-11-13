@@ -322,7 +322,7 @@ public sealed class LocalizationManager : INotifyPropertyChanged
         ["禁用此启动项"] = "Disable this startup item",
         ["启用此启动项"] = "Enable this startup item",
         ["切换深色模式"] = "Switch to dark mode",
-        ["v1.4  ·  本地运行，数据不上传"] = "v1.4  ·  Local only, data stays on this PC",
+        ["v1.4.1  ·  本地运行，数据不上传"] = "v1.4.1  ·  Local only, data stays on this PC",
         ["；"] = "; ",
         ["自动（延迟）"] = "Automatic (delayed)",
         ["自动"] = "Automatic",

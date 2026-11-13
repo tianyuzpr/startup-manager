@@ -13,9 +13,9 @@
     <AssemblyTitle>启航 · 开机启动管理器</AssemblyTitle>
     <Product>启航 · 开机启动管理器</Product>
     <Description>集中管理 Windows 服务、登录启动项与计划任务</Description>
-    <Version>1.4.0</Version>
-    <FileVersion>1.4.0.0</FileVersion>
-    <InformationalVersion>1.4.0</InformationalVersion>
+    <Version>1.4.1</Version>
+    <FileVersion>1.4.1.0</FileVersion>
+    <InformationalVersion>1.4.1</InformationalVersion>
     <InvariantGlobalization>false</InvariantGlobalization>
     <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
   </PropertyGroup>

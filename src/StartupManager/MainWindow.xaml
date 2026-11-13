@@ -322,7 +322,7 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="{loc:Loc v1.4  ·  本地运行，数据不上传}"
+                        <TextBlock Text="{loc:Loc v1.4.1  ·  本地运行，数据不上传}"
                                    Foreground="{DynamicResource SidebarVersionForegroundBrush}"
                                    FontSize="9"
                                    Margin="4,14,0,0" />
