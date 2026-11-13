@@ -122,6 +122,8 @@ jobs:
       - name: Calculate nightly version
         id: version
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $ErrorActionPreference = 'Stop'
 
@@ -134,14 +136,75 @@ jobs:
           $isoDay = [int]$now.DayOfWeek
           if ($isoDay -eq 0) { $isoDay = 7 } # Sunday: .NET 0 -> ISO 7
 
-          # Format: YYwWWdD.NIGHTLY, e.g. 26w46d1.NIGHTLY.
-          $version = '{0:D2}w{1:D2}d{2}.NIGHTLY' -f ($isoYear % 100), $isoWeek, $isoDay
+          # Base format: YYwWWdD, e.g. 26w46d1 for Monday of ISO week 46 of 2026.
+          $base = '{0:D2}w{1:D2}d{2}' -f ($isoYear % 100), $isoWeek, $isoDay
 
-          if ($version -notmatch '^\d{2}w\d{2}d[1-7]\.NIGHTLY$') {
-              throw "Calculated version '$version' does not match YYwWWdD.NIGHTLY."
+          # Several builds may happen on the same calendar day. Each release for
+          # that day gets a trailing letter: a, b, c ... z, then aa, ab, ...
+          # The suffix comes from the highest existing tag of the form
+          # "<base><letter>", so a fresh day always starts at "a".
+          $existingTags = @()
+          try {
+              $existingTags = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 200 --json tagName --jq '.[].tagName' 2>$null)
+              if ($LASTEXITCODE -ne 0) {
+                  Write-Output 'Could not list existing releases; assuming this is the first build of the day.'
+                  $existingTags = @()
+              }
+          }
+          catch {
+              Write-Output "Could not list existing releases: $($_.Exception.Message)"
+              $existingTags = @()
           }
 
-          Write-Output "Nightly version: $version"
+          $pattern = '^' + [regex]::Escape($base) + '(?<seq>[a-z]+)$'
+          $maxSeq = ''
+          foreach ($tag in $existingTags) {
+              if (-not $tag) { continue }
+              $match = [regex]::Match($tag.Trim(), $pattern)
+              if (-not $match.Success) { continue }
+
+              $seq = $match.Groups['seq'].Value
+              # Compare by length first so 'aa' ranks above 'z'.
+              if ($seq.Length -gt $maxSeq.Length -or
+                  ($seq.Length -eq $maxSeq.Length -and [string]::CompareOrdinal($seq, $maxSeq) -gt 0)) {
+                  $maxSeq = $seq
+              }
+          }
+
+          if ($maxSeq) {
+              # Increment the letter sequence: a -> b, z -> aa, az -> ba, zz -> aaa.
+              $chars = $maxSeq.ToCharArray()
+              $i = $chars.Length - 1
+              while ($i -ge 0) {
+                  if ($chars[$i] -eq [char]'z') {
+                      $chars[$i] = [char]'a'
+                      $i--
+                  }
+                  else {
+                      $chars[$i] = [char]([int][char]$chars[$i] + 1)
+                      break
+                  }
+              }
+
+              if ($i -lt 0) {
+                  $sequence = 'a' + (-join $chars)
+              }
+              else {
+                  $sequence = -join $chars
+              }
+          }
+          else {
+              $sequence = 'a'
+          }
+
+          # Full version, e.g. 26w46d6a.NIGHTLY.
+          $version = "$base$sequence.NIGHTLY"
+
+          if ($version -notmatch '^\d{2}w\d{2}d[1-7][a-z]+\.NIGHTLY$') {
+              throw "Calculated version '$version' does not match YYwWWdDLETTER.NIGHTLY."
+          }
+
+          Write-Output "Nightly version: $version (previous highest sequence: '$maxSeq')"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "### Nightly version`n`n**$version**" |
               Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
@@ -255,9 +318,9 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           VERSION: ${{ steps.version.outputs.version }}
         run: |
-          # If a nightly release with the same day's tag already exists (for
-          # example after a manual re-run), replace only a pre-release. Never
-          # overwrite a stable release with the same tag.
+          # Every build of the same day gets its own letter suffix (a, b, c ...),
+          # so this tag must not exist yet. If it does, the version calculation
+          # is stale: fail instead of overwriting an existing release.
           $tag = $env:VERSION
           $asset = "artifacts/StartupManager-$tag.exe"
           $notes = "artifacts/release-notes.md"
@@ -265,16 +328,9 @@ jobs:
           if (-not (Test-Path -LiteralPath $asset)) { throw "Asset '$asset' is missing." }
           if (-not (Test-Path -LiteralPath $notes)) { throw "Release notes '$notes' are missing." }
 
-          $existing = gh release view $tag --repo $env:GITHUB_REPOSITORY --json isPrerelease 2>$null
+          gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
-              $info = $existing | ConvertFrom-Json
-              if (-not $info.isPrerelease) {
-                  throw "Release '$tag' exists and is not a pre-release. Refusing to overwrite it."
-              }
-
-              Write-Output "Replacing existing pre-release '$tag'."
-              gh release delete $tag --repo $env:GITHUB_REPOSITORY --yes --cleanup-tag
-              if ($LASTEXITCODE -ne 0) { throw "Could not delete the existing pre-release '$tag'." }
+              throw "Release '$tag' already exists. Refusing to overwrite it; re-run the workflow to allocate the next letter."
           }
 
           gh release create $tag $asset `
