@@ -345,6 +345,42 @@ jobs:
               throw "Inno Setup compiler was not found at '$iscc'."
           }
 
+          # Inno Setup 6.7.x does not ship the unofficial Simplified Chinese
+          # translation. Download it next to the generated .iss file, retrying
+          # a few times before failing the job with a clear error.
+          $languagePath = Join-Path $env:GITHUB_WORKSPACE 'ChineseSimplified.isl'
+          $languageUrl = 'https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/ChineseSimplified.isl'
+          $downloaded = $false
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+              try {
+                  if (Test-Path -LiteralPath $languagePath) {
+                      Remove-Item -LiteralPath $languagePath -Force
+                  }
+
+                  Invoke-WebRequest -Uri $languageUrl -OutFile $languagePath -UseBasicParsing -TimeoutSec 60
+                  if (-not (Test-Path -LiteralPath $languagePath)) {
+                      throw 'The language file was not created.'
+                  }
+                  if ((Get-Item -LiteralPath $languagePath).Length -eq 0) {
+                      throw 'The downloaded language file is empty.'
+                  }
+
+                  $downloaded = $true
+                  break
+              }
+              catch {
+                  if ($attempt -eq 3) {
+                      throw "Could not download the Simplified Chinese Inno Setup language file: $($_.Exception.Message)"
+                  }
+                  Write-Warning "Language download attempt $attempt failed: $($_.Exception.Message)"
+                  Start-Sleep -Seconds (2 * $attempt)
+              }
+          }
+
+          if (-not $downloaded) {
+              throw 'Could not download the Simplified Chinese Inno Setup language file.'
+          }
+
           $runtimeCheck = @'
           [Code]
           function IsDotNet10DesktopInstalled: Boolean;
@@ -355,7 +391,7 @@ jobs:
           begin
             Result := False;
 
-            if RegGetSubkeyNames(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Names) then
+            if RegGetSubkeyNames(HKEY_LOCAL_MACHINE, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Names) then
             begin
               for I := 0 to GetArrayLength(Names) - 1 do
               begin
@@ -426,7 +462,7 @@ jobs:
           UninstallDisplayIcon={app}\{#MyAppExeName}
 
           [Languages]
-          Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+          Name: "chinesesimp"; MessagesFile: "ChineseSimplified.isl"
           Name: "english"; MessagesFile: "compiler:Default.isl"
 
           [Tasks]
