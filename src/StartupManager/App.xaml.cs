@@ -42,7 +42,7 @@ public partial class App : Application
         Services.AuditLog.Write("UNHANDLED", e.Exception.ToString());
         MessageBox.Show(
             L.F("程序遇到未处理的错误：\n\n{0}\n\n详细信息已写入本地日志。", e.Exception.Message),
-            L.T("启航 · 发生错误"),
+            L.F("{0} · 发生错误", AppInfo.ProductName),
             MessageBoxButton.OK,
             MessageBoxImage.Error);
         e.Handled = true;

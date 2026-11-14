@@ -191,9 +191,48 @@ dotnet publish src/StartupManager/StartupManager.csproj -c Release -r win-x64 --
 
 自包含单文件使用 `IncludeAllContentForSelfExtract=true`，首次启动会把运行时解压到临时目录，避免 WPF 在单文件模式下出现空白窗口。发布产物仍只有一个 `release/StartupManager.exe`。若遇到单文件空白窗口，先删除 `src/StartupManager/bin`、`src/StartupManager/obj` 和旧发布目录，再重新发布。
 
+### 版本与构建信息（单一配置源）
+
+应用名称、版本号、发布者、版权、运行时与发布参数全部集中在 **`build/app.props`**，改这一个文件即可，不需要再改代码或 XAML：
+
+```xml
+<AppDisplayName>启航 · 开机启动管理器</AppDisplayName>
+<AppProductName>启航</AppProductName>
+<AppTaglineZh>本地运行，数据不上传</AppTaglineZh>
+<AppTaglineEn>Local only, data stays on this PC</AppTaglineEn>
+<AppReleaseChannel>prerelease</AppReleaseChannel>  <!-- stable / prerelease / dev / nightly -->
+<AppVersion>1.5.0-rc1</AppVersion>        <!-- 时点版本，不包含 -BUILDYYWW -->
+<AppBuildNumber>BUILD2646</AppBuildNumber><!-- 仅 stable/prerelease 追加；YYWW 为 ISO 年/周 -->
+<AppFileVersion>1.5.0.0</AppFileVersion>  <!-- 必须是纯数字 -->
+<AppCopyright>Copyright © 2026 Xiayue. Apache License 2.0.</AppCopyright>
+<AppCompany>Xiayue</AppCompany>
+<AppRepositoryUrl>https://github.com/tianyuzpr/startup-manager</AppRepositoryUrl>
+<AppMinimumWindows>Windows 10 1607 (build 14393) or later, x64</AppMinimumWindows>
+```
+
+版本命名规则：
+
+| 类型 | 格式 | 是否带 build 编号 |
+|---|---|---|
+| 稳定版 | `vX.Y.Z-BUILDYYWW` | 是 |
+| 预发布 | `vX.Y.0-rcZ-BUILDYYWW` | 是 |
+| 夜间构建 | `YYwWWdDZ.NIGHTLY` | 否 |
+| 开发版 | `YYwWWdDZ` | 否 |
+
+自动构建 workflow 支持 `nightly` 与 `dev` 两个 channel。计算当天的 Z 时，会同时读取已有的开发版（`YYwWWdDZ`）和夜间构建（`YYwWWdDZ.NIGHTLY`）标签，取最大字母后顺延一位；因此如果当天已有开发版 `26w46d6a`，夜间构建会得到 `26w46d6b.NIGHTLY`，不会再复用同一个 Z。
+
+生效方式：
+
+- **编译期**：`StartupManager.csproj` 导入该文件，程序集名称、标题、产品、版本、公司、版权都来自这里，文件属性里的版本随之变化。`stable` / `prerelease` 会自动把 `AppVersion` 和 `AppBuildNumber` 拼成完整版本；`dev` / `nightly` 不追加 build 编号。
+- **运行期**：同一文件作为嵌入资源打入程序，`Services/AppInfo.cs` 读取程序集信息后驱动界面：窗口标题、侧栏品牌名、底部版本行（`v1.5.0-rc1-BUILD2646  ·  本地运行，数据不上传`）、新增对话框名称、提权提示、计划任务作者说明等。
+- 修改后直接重新 `dotnet build` / `dotnet publish` 即可，无需改任何 XAML 或 C# 文件。
+
+> `Services/ScheduledTaskManager.cs` 里的 `<Task version="1.4">` 是 Windows 任务计划 XML 架构版本，不属于应用版本，请勿修改。
+
 ## 目录结构
 
 ```text
+build/app.props         # 版本、名称、发布者等全部可配置信息（唯一修改点）
 src/StartupManager/
 ├─ Models/             # 启动项模型、操作请求/结果
 ├─ Services/           # 扫描、操作、注册表、服务、计划任务、进程探测、CSV、保护名单

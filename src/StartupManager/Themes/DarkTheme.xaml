@@ -131,8 +131,8 @@
     <SolidColorBrush x:Key="StatusReadyForegroundBrush" Color="#A5B4FC" />
     <SolidColorBrush x:Key="StatusDisabledBackgroundBrush" Color="#20242E" />
     <SolidColorBrush x:Key="StatusDisabledForegroundBrush" Color="#AAB4C5" />
-    <SolidColorBrush x:Key="StatusUnknownBackgroundBrush" Color="#3A2C16" />
-    <SolidColorBrush x:Key="StatusUnknownForegroundBrush" Color="#FBBF24" />
+    <SolidColorBrush x:Key="StatusUnknownBackgroundBrush" Color="#2A3038" />
+    <SolidColorBrush x:Key="StatusUnknownForegroundBrush" Color="#A8B0BE" />
 
     <!-- Entry kinds -->
     <SolidColorBrush x:Key="KindServiceSoftBrush" Color="#24284A" />

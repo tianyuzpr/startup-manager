@@ -20,6 +20,13 @@ using StartupManager.Models;
 
 namespace StartupManager.Services;
 
+public sealed class NoMatchingProcessException : InvalidOperationException
+{
+    public NoMatchingProcessException(string message) : base(message)
+    {
+    }
+}
+
 public sealed class StartupActionService
 {
     public ProcessSnapshot GetProcessSnapshot() => ProcessProbe.Capture();
@@ -52,7 +59,8 @@ public sealed class StartupActionService
                 var matches = FindRunningProcesses(entry);
                 if (matches.Count == 0)
                 {
-                    throw new InvalidOperationException(L.T("没有发现正在运行的关联进程，可能它已经停止。"));
+                    throw new NoMatchingProcessException(
+                        L.T("没有发现正在运行的关联进程，可能它已经停止。"));
                 }
 
                 var killed = KillProcesses(matches);

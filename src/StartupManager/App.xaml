@@ -28,6 +28,7 @@
             <conv:InverseBooleanToVisibilityConverter x:Key="InverseBoolToVis" />
             <conv:NullToVisibilityConverter x:Key="NullToVis" />
             <conv:StringToVisibilityConverter x:Key="StringToVis" />
+            <conv:AppInfoConverter x:Key="AppInfo" />
 
             <FontFamily x:Key="UiFont">Microsoft YaHei UI, Segoe UI Variable, Segoe UI</FontFamily>
             <FontFamily x:Key="IconFont">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>

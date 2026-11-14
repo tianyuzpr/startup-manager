@@ -276,8 +276,8 @@ public sealed class MainViewModel : INotifyPropertyChanged
         var statusMatches = StatusFilter switch
         {
             EntryStatusFilter.All => true,
-            EntryStatusFilter.Running => entry.IsRunning,
-            EntryStatusFilter.Stopped => !entry.IsRunning && entry.IsEnabled,
+            EntryStatusFilter.Running => entry.RunState == EntryRunState.Running,
+            EntryStatusFilter.Stopped => entry.RunState == EntryRunState.NotRunning && entry.IsEnabled,
             EntryStatusFilter.Disabled => !entry.IsEnabled,
             _ => true
         };

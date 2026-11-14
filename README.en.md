@@ -192,9 +192,48 @@ dotnet publish src/StartupManager/StartupManager.csproj -c Release -r win-x64 --
 
 The self-contained single file uses `IncludeAllContentForSelfExtract=true`, which extracts the runtime to a temporary directory on first launch and avoids a blank WPF window in single-file mode. The published output is still a single `release/StartupManager.exe`. If a blank single-file window occurs, delete `src/StartupManager/bin`, `src/StartupManager/obj` and the old publish directory, then publish again.
 
+### Version and build information (single source of truth)
+
+The app name, version, publisher, copyright, runtime and packaging options all live in **`build/app.props`**. Change that one file; no code or XAML edits are needed:
+
+```xml
+<AppDisplayName>启航 · 开机启动管理器</AppDisplayName>
+<AppProductName>启航</AppProductName>
+<AppTaglineZh>本地运行，数据不上传</AppTaglineZh>
+<AppTaglineEn>Local only, data stays on this PC</AppTaglineEn>
+<AppReleaseChannel>prerelease</AppReleaseChannel>  <!-- stable / prerelease / dev / nightly -->
+<AppVersion>1.5.0-rc1</AppVersion>        <!-- point version, without -BUILDYYWW -->
+<AppBuildNumber>BUILD2646</AppBuildNumber><!-- stable/prerelease only; YYWW = ISO year/week -->
+<AppFileVersion>1.5.0.0</AppFileVersion>  <!-- numeric only -->
+<AppCopyright>Copyright © 2026 Xiayue. Apache License 2.0.</AppCopyright>
+<AppCompany>Xiayue</AppCompany>
+<AppRepositoryUrl>https://github.com/tianyuzpr/startup-manager</AppRepositoryUrl>
+<AppMinimumWindows>Windows 10 1607 (build 14393) or later, x64</AppMinimumWindows>
+```
+
+Version naming rules:
+
+| Type | Format | Carries build number |
+|---|---|---|
+| Stable | `vX.Y.Z-BUILDYYWW` | Yes |
+| Pre-release | `vX.Y.0-rcZ-BUILDYYWW` | Yes |
+| Nightly | `YYwWWdDZ.NIGHTLY` | No |
+| Dev | `YYwWWdDZ` | No |
+
+The automatic build workflow supports both `nightly` and `dev` channels. When calculating that day's Z, it reads existing development tags (`YYwWWdDZ`) and nightly tags (`YYwWWdDZ.NIGHTLY`), takes the highest letter and advances by one. So if `26w46d6a` already exists for the day, the nightly becomes `26w46d6b.NIGHTLY` instead of reusing the same Z.
+
+How it takes effect:
+
+- **Build time:** `StartupManager.csproj` imports the file, so the assembly name, title, product, version, company and copyright come from it, and the version shown in file properties follows automatically. `stable` / `prerelease` append `-BUILDYYWW`; `dev` / `nightly` never carry a build number.
+- **Run time:** the same file is embedded as a resource. `Services/AppInfo.cs` reads the assembly information to drive the window title, the sidebar brand, the footer line (`v1.5.0-rc1-BUILD2646  ·  Local only, data stays on this PC`), the add dialog heading, elevation messages and the scheduled-task author note.
+- After editing, just run `dotnet build` / `dotnet publish` again.
+
+> `<Task version="1.4">` in `Services/ScheduledTaskManager.cs` is the Windows Task Scheduler XML schema version, not the app version. Leave it alone.
+
 ## Directory structure
 
 ```text
+build/app.props         # Version, names, publisher and other build facts (the only file to edit)
 src/StartupManager/
 ├─ Models/             # Startup-item models and operation requests/results
 ├─ Services/           # Scanning, actions, registry, services, scheduled tasks, process probing, CSV, protection list

@@ -15,37 +15,50 @@
 -->
 <Project Sdk="Microsoft.NET.Sdk">
 
+  <!-- All build-time facts (name, version, publisher, runtime) live in this file. -->
+  <Import Project="..\..\build\app.props" />
+
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>$(AppTargetFramework)</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <UseWPF>true</UseWPF>
-    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
-    <ApplicationManifest>app.manifest</ApplicationManifest>
-    <AssemblyName>StartupManager</AssemblyName>
-    <RootNamespace>StartupManager</RootNamespace>
-    <AssemblyTitle>启航 · 开机启动管理器</AssemblyTitle>
-    <Product>启航 · 开机启动管理器</Product>
-    <Description>集中管理 Windows 服务、登录启动项与计划任务</Description>
-    <Version>1.4.1</Version>
-    <FileVersion>1.4.1.0</FileVersion>
-    <InformationalVersion>1.4.1</InformationalVersion>
+    <ApplicationIcon>$(AppIconPath)</ApplicationIcon>
+    <ApplicationManifest>$(AppManifestPath)</ApplicationManifest>
+    <AssemblyName>$(AppAssemblyName)</AssemblyName>
+    <RootNamespace>$(AppRootNamespace)</RootNamespace>
+    <AssemblyTitle>$(AppDisplayName)</AssemblyTitle>
+    <Product>$(AppDisplayName)</Product>
+    <Description>$(AppDisplayName) · $(AppTaglineZh)</Description>
+    <Company>$(AppCompany)</Company>
+    <Copyright>$(AppCopyright)</Copyright>
+    <Version>$(AppEffectiveVersion)</Version>
+    <FileVersion>$(AppFileVersion)</FileVersion>
+    <InformationalVersion>$(AppEffectiveVersion)</InformationalVersion>
+    <RepositoryUrl>$(AppRepositoryUrl)</RepositoryUrl>
     <InvariantGlobalization>false</InvariantGlobalization>
     <SatelliteResourceLanguages>zh-Hans;en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>embedded</DebugType>
-    <PublishSingleFile>true</PublishSingleFile>
+    <PublishSingleFile>$(AppPublishSingleFile)</PublishSingleFile>
     <SelfContained>false</SelfContained>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier>$(AppRuntimeIdentifier)</RuntimeIdentifier>
     <PublishReadyToRun>false</PublishReadyToRun>
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
   </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="System.Management" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The same file is also embedded so the running app can read version and names. -->
+    <EmbeddedResource Include="..\..\build\app.props"
+                      Link="app.props"
+                      LogicalName="StartupManager.app.props" />
   </ItemGroup>
 
 </Project>

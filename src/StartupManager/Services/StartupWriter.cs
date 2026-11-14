@@ -88,7 +88,7 @@ public sealed class StartupWriter
                         host,
                         arguments,
                         workingDirectory,
-                        L.F("由“启航”创建的系统启动任务：{0}", request.Name));
+                        L.F("由“{1}”创建的系统启动任务：{0}", request.Name, AppInfo.ProductName));
                     result = new AddEntryResult
                     {
                         Success = true,
@@ -108,7 +108,7 @@ public sealed class StartupWriter
                             request.Name,
                             request.ExecutablePath,
                             request.Arguments,
-                            L.F("由“启航”创建：{0}", request.Name),
+                            L.F("由“{0}”创建：{1}", AppInfo.ProductName, request.Name),
                             request.StartServiceImmediately);
 
                         result = new AddEntryResult

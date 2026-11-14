@@ -54,8 +54,7 @@ public sealed class StartupScanner
             foreach (var service in serviceResult.Result)
             {
                 entries.Add(MapService(service));
-            }
-        }
+            }        }
 
         var registryResult = registryTask.Result;
         if (registryResult.Error is not null)
@@ -66,7 +65,7 @@ public sealed class StartupScanner
         {
             foreach (var run in registryResult.Result)
             {
-                entries.Add(MapRegistryEntry(run, processes));
+                entries.Add(MapRegistryEntry(run, processes, processResult.Error is null));
             }
         }
 
@@ -79,7 +78,7 @@ public sealed class StartupScanner
         {
             foreach (var folderEntry in folderResult.Result)
             {
-                entries.Add(MapStartupFolderEntry(folderEntry, processes));
+                entries.Add(MapStartupFolderEntry(folderEntry, processes, processResult.Error is null));
             }
         }
 
@@ -126,17 +125,27 @@ public sealed class StartupScanner
     {
         var parsed = CommandLineParser.Parse(service.ImagePath);
         var isRunning = WindowsServiceManager.IsRunning(service.State);
-        var state = isRunning
-            ? EntryRuntimeState.Running
-            : service.StartType == 4
-                ? EntryRuntimeState.Disabled
+        var runState = isRunning ? EntryRunState.Running : EntryRunState.NotRunning;
+        var state = !isRunning && service.StartType == 4
+            ? EntryRuntimeState.Disabled
+            : isRunning
+                ? EntryRuntimeState.Running
                 : EntryRuntimeState.Stopped;
+
+        var startMode = WindowsServiceManager.StartModeLabel(service.StartType, service.DelayedAutoStart);
+        var startupTypeCode = service.StartType switch
+        {
+            0 => "boot",
+            1 => "system",
+            2 => service.DelayedAutoStart ? "auto-delayed" : "auto",
+            3 => "manual",
+            4 => "disabled",
+            _ => "unknown"
+        };
 
         var stateDetail = service.ProcessId > 0
             ? $"PID {service.ProcessId}{(string.IsNullOrWhiteSpace(service.ProcessName) ? string.Empty : $" · {service.ProcessName}")}"
             : WindowsServiceManager.StateLabel(service.State);
-
-        var startMode = WindowsServiceManager.StartModeLabel(service.StartType, service.DelayedAutoStart);
         var trigger = service.StartType switch
         {
             0 => L.T("引导启动"),
@@ -170,9 +179,16 @@ public sealed class StartupScanner
             ScopeLabel = L.T("系统级"),
             TriggerLabel = trigger,
             StartupModeLabel = startMode,
+            StartupTypeCode = startupTypeCode,
+            ScopeCode = "system",
             RequiresAdmin = true,
             IsEnabled = service.StartType != 4,
             IsRunning = isRunning,
+            RunState = runState,
+            Matchability = Matchability.Reliable,
+            MatchEvidence = isRunning
+                ? L.F("PID {0} · {1}", service.ProcessId, service.ImagePath)
+                : L.F("未在可观测进程中发现匹配项（服务状态：{0}）", WindowsServiceManager.StateLabel(service.State)),
             State = state,
             StateDetail = stateDetail,
             ProcessIds = processIds,
@@ -186,16 +202,27 @@ public sealed class StartupScanner
         };
     }
 
-    private static ManagedEntry MapRegistryEntry(RegistryRunEntry run, ProcessSnapshot processes)
+    private static ManagedEntry MapRegistryEntry(RegistryRunEntry run, ProcessSnapshot processes, bool processSnapshotAvailable)
     {
         var parsed = CommandLineParser.Parse(run.Command);
-        var matches = processes.Match(parsed.ExecutablePath, parsed.ScriptPath);
-        var isRunning = matches.Count > 0;
-        var state = isRunning
-            ? EntryRuntimeState.Running
-            : !run.IsEnabled
-                ? EntryRuntimeState.Disabled
-                : EntryRuntimeState.Stopped;
+        var matchability = MatchabilityEvaluator.Evaluate(run.Command, parsed.ExecutablePath, parsed.ScriptPath);
+        IReadOnlyList<ProcessRecord> matches;
+        try
+        {
+            matches = processes.Match(parsed.ExecutablePath, parsed.ScriptPath);
+        }
+        catch
+        {
+            matches = Array.Empty<ProcessRecord>();
+            processSnapshotAvailable = false;
+        }
+
+        var classification = ClassifyProcessEntry(
+            run.IsEnabled,
+            matchability,
+            processSnapshotAvailable,
+            matches,
+            run.Command);
 
         var isPolicy = run.KeyPath.Contains(@"\Policies\", StringComparison.OrdinalIgnoreCase);
         var sourceLabel = isPolicy
@@ -203,13 +230,6 @@ public sealed class StartupScanner
             : run.IsRunOnce
                 ? L.T("注册表 RunOnce")
                 : L.T("注册表 Run");
-
-        var stateDetail = state switch
-        {
-            EntryRuntimeState.Disabled => L.T("已在任务管理器或系统设置中禁用"),
-            EntryRuntimeState.Running => $"PID {string.Join(", ", matches.Select(m => m.Id))}",
-            _ => L.T("登录时未运行")
-        };
 
         var supportsToggle = !isPolicy && !run.IsRunOnce;
         return new ManagedEntry
@@ -226,13 +246,20 @@ public sealed class StartupScanner
             SourceLabel = sourceLabel,
             ScopeLabel = run.IsCurrentUser ? L.T("当前用户") : L.T("所有用户"),
             TriggerLabel = run.IsRunOnce ? L.T("下次登录一次") : L.T("用户登录时"),
-            StartupModeLabel = run.IsRunOnce ? L.T("注册表 RunOnce") : "注册表 Run",
+            StartupModeLabel = run.IsRunOnce ? L.T("注册表 RunOnce") : L.T("注册表 Run"),
+            StartupTypeCode = isPolicy ? "policy" : run.IsRunOnce ? "runonce" : "run",
+            ScopeCode = run.IsCurrentUser ? "current-user" : "all-users",
             RequiresAdmin = !run.IsCurrentUser,
             IsEnabled = run.IsEnabled,
-            IsRunning = isRunning,
-            State = state,
-            StateDetail = stateDetail,
-            ProcessIds = matches.Select(m => m.Id).ToList(),
+            IsRunning = classification.RunState == EntryRunState.Running,
+            RunState = classification.RunState,
+            Matchability = matchability,
+            MatchEvidence = classification.Evidence,
+            State = classification.State,
+            StateDetail = classification.Evidence,
+            ProcessIds = classification.RunState == EntryRunState.Running
+                ? matches.Select(m => m.Id).ToList()
+                : Array.Empty<int>(),
             RegistryHive = run.Hive,
             RegistryKeyPath = run.KeyPath,
             RegistryValueName = run.ValueName,
@@ -245,23 +272,31 @@ public sealed class StartupScanner
         };
     }
 
-    private static ManagedEntry MapStartupFolderEntry(StartupFolderEntry entry, ProcessSnapshot processes)
+    private static ManagedEntry MapStartupFolderEntry(StartupFolderEntry entry, ProcessSnapshot processes, bool processSnapshotAvailable)
     {
-        var matches = processes.Match(entry.TargetPath, entry.ScriptPath);
         var parsed = CommandLineParser.Parse(entry.CommandLine);
-        var isRunning = matches.Count > 0;
-        var state = isRunning
-            ? EntryRuntimeState.Running
-            : !entry.IsEnabled
-                ? EntryRuntimeState.Disabled
-                : EntryRuntimeState.Stopped;
+        var matchability = MatchabilityEvaluator.Evaluate(
+            entry.CommandLine,
+            entry.TargetPath ?? parsed.ExecutablePath,
+            entry.ScriptPath ?? parsed.ScriptPath);
 
-        var stateDetail = state switch
+        IReadOnlyList<ProcessRecord> matches;
+        try
         {
-            EntryRuntimeState.Disabled => L.T("已在任务管理器或系统设置中禁用"),
-            EntryRuntimeState.Running => $"PID {string.Join(", ", matches.Select(m => m.Id))}",
-            _ => L.T("登录时未运行")
-        };
+            matches = processes.Match(entry.TargetPath, entry.ScriptPath);
+        }
+        catch
+        {
+            matches = Array.Empty<ProcessRecord>();
+            processSnapshotAvailable = false;
+        }
+
+        var classification = ClassifyProcessEntry(
+            entry.IsEnabled,
+            matchability,
+            processSnapshotAvailable,
+            matches,
+            entry.CommandLine);
 
         return new ManagedEntry
         {
@@ -278,12 +313,19 @@ public sealed class StartupScanner
             ScopeLabel = entry.IsCommon ? L.T("所有用户") : L.T("当前用户"),
             TriggerLabel = entry.IsCommon ? L.T("所有用户登录时") : L.T("用户登录时"),
             StartupModeLabel = L.T("启动文件夹"),
+            StartupTypeCode = "startup-folder",
+            ScopeCode = entry.IsCommon ? "all-users" : "current-user",
             RequiresAdmin = entry.IsCommon,
             IsEnabled = entry.IsEnabled,
-            IsRunning = isRunning,
-            State = state,
-            StateDetail = stateDetail,
-            ProcessIds = matches.Select(m => m.Id).ToList(),
+            IsRunning = classification.RunState == EntryRunState.Running,
+            RunState = classification.RunState,
+            Matchability = matchability,
+            MatchEvidence = classification.Evidence,
+            State = classification.State,
+            StateDetail = classification.Evidence,
+            ProcessIds = classification.RunState == EntryRunState.Running
+                ? matches.Select(m => m.Id).ToList()
+                : Array.Empty<int>(),
             FilePath = entry.FilePath
         };
     }
@@ -294,19 +336,16 @@ public sealed class StartupScanner
         var matches = processes.Match(parsed.ExecutablePath, parsed.ScriptPath);
         var isRunning = task.State == 4 || matches.Count > 0;
 
-        var state = isRunning
-            ? EntryRuntimeState.Running
-            : task.State == 1 || !task.IsEnabled
-                ? EntryRuntimeState.Disabled
-                : task.State == 3
-                    ? EntryRuntimeState.Ready
-                    : EntryRuntimeState.Unknown;
+        var state = task.State == 1 || !task.IsEnabled
+            ? EntryRuntimeState.Disabled
+            : isRunning
+                ? EntryRuntimeState.Running
+                : EntryRuntimeState.Stopped;
 
         var stateDetail = L.F("任务状态：{0}", ScheduledTaskManager.StateLabel(task.State));
-        if (matches.Count > 0)
-        {
-            stateDetail += $" · PID {string.Join(", ", matches.Select(m => m.Id))}";
-        }
+        var evidence = isRunning && matches.Count > 0
+            ? L.F("PID {0} · {1}", string.Join(", ", matches.Select(m => m.Id)), task.CommandLine)
+            : L.F("未在可观测进程中发现匹配项（任务状态：{0}）", ScheduledTaskManager.StateLabel(task.State));
 
         var systemTask = task.FullPath.StartsWith(@"\Microsoft\", StringComparison.OrdinalIgnoreCase);
         var description = string.IsNullOrWhiteSpace(task.Description)
@@ -330,9 +369,14 @@ public sealed class StartupScanner
             ScopeLabel = task.RequiresAdmin ? L.T("系统级") : L.T("当前用户"),
             TriggerLabel = task.TriggerLabel,
             StartupModeLabel = L.T("任务计划程序"),
+            StartupTypeCode = "scheduled-task",
+            ScopeCode = task.RequiresAdmin ? "system" : "current-user",
             RequiresAdmin = task.RequiresAdmin,
             IsEnabled = task.IsEnabled,
             IsRunning = isRunning,
+            RunState = isRunning ? EntryRunState.Running : EntryRunState.NotRunning,
+            Matchability = Matchability.Reliable,
+            MatchEvidence = evidence,
             State = state,
             StateDetail = stateDetail,
             ProcessIds = matches.Select(m => m.Id).ToList(),
@@ -340,6 +384,40 @@ public sealed class StartupScanner
             RequiresTypedConfirmation = systemTask,
             ConfirmationPhrase = systemTask ? task.Name : null
         };
+    }
+
+    private static (EntryRunState RunState, EntryRuntimeState State, string Evidence) ClassifyProcessEntry(
+        bool enabled,
+        Matchability matchability,
+        bool processSnapshotAvailable,
+        IReadOnlyList<ProcessRecord> matches,
+        string commandLine)
+    {
+        var reliable = matchability == Matchability.Reliable && processSnapshotAvailable;
+        var runState = reliable
+            ? matches.Count > 0 ? EntryRunState.Running : EntryRunState.NotRunning
+            : EntryRunState.Indeterminate;
+
+        var state = !enabled
+            ? EntryRuntimeState.Disabled
+            : runState switch
+            {
+                EntryRunState.Running => EntryRuntimeState.Running,
+                EntryRunState.NotRunning => EntryRuntimeState.Stopped,
+                _ => EntryRuntimeState.Unknown
+            };
+
+        var evidence = runState switch
+        {
+            EntryRunState.Running => L.F(
+                "PID {0} · {1}",
+                string.Join(", ", matches.Select(m => m.Id)),
+                commandLine),
+            EntryRunState.NotRunning => L.T("未在可观测进程中发现匹配项"),
+            _ => L.T("由启动器或脚本间接拉起，无法可靠匹配；可能正在运行")
+        };
+
+        return (runState, state, evidence);
     }
 
     private static int KindRank(EntryKind kind) => kind switch

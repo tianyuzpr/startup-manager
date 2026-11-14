@@ -35,6 +35,20 @@ public enum EntryRuntimeState
     Unknown
 }
 
+public enum Matchability
+{
+    Reliable,
+    Unreliable,
+    Unknown
+}
+
+public enum EntryRunState
+{
+    Running,
+    NotRunning,
+    Indeterminate
+}
+
 /// <summary>
 /// A single item that can start with Windows. The same shape is used for
 /// Windows services, Run-key entries, Startup-folder files and scheduled tasks.
@@ -56,12 +70,17 @@ public sealed class ManagedEntry
     public string ScopeLabel { get; init; } = string.Empty;
     public string TriggerLabel { get; init; } = string.Empty;
     public string StartupModeLabel { get; init; } = string.Empty;
+    public string StartupTypeCode { get; init; } = string.Empty;
+    public string ScopeCode { get; init; } = string.Empty;
 
     public bool RequiresAdmin { get; init; }
     public bool IsEnabled { get; init; } = true;
     public bool IsRunning { get; init; }
     public EntryRuntimeState State { get; init; } = EntryRuntimeState.Unknown;
+    public EntryRunState RunState { get; init; } = EntryRunState.Indeterminate;
+    public Matchability Matchability { get; init; } = Matchability.Unknown;
     public string StateDetail { get; init; } = string.Empty;
+    public string MatchEvidence { get; init; } = string.Empty;
     public IReadOnlyList<int> ProcessIds { get; init; } = Array.Empty<int>();
 
     public string? ServiceName { get; init; }
@@ -105,15 +124,14 @@ public sealed class ManagedEntry
         _ => L.IsEnglish ? "S" : "启"
     };
 
-    public string StatusLabel => State switch
-    {
-        EntryRuntimeState.Running => L.T("运行中"),
-        EntryRuntimeState.Disabled => L.T("已禁用"),
-        EntryRuntimeState.Ready => L.T("就绪"),
-        EntryRuntimeState.Stopped when Kind == EntryKind.WindowsService => L.T("已停止"),
-        EntryRuntimeState.Stopped => L.T("未运行"),
-        _ => L.T("未知")
-    };
+    public string StatusLabel => !IsEnabled
+        ? L.T("已禁用")
+        : RunState switch
+        {
+            EntryRunState.Running => L.T("运行中"),
+            EntryRunState.NotRunning => L.T("未运行"),
+            _ => L.T("状态未知")
+        };
 
     public string AdminLabel => RequiresAdmin ? L.T("需要管理员") : L.T("当前用户");
 
@@ -142,12 +160,14 @@ public sealed class ManagedEntry
     public bool CanOpenLocation => !string.IsNullOrWhiteSpace(FilePath)
                                    || (!string.IsNullOrWhiteSpace(ExecutablePath) && System.IO.File.Exists(ExecutablePath));
 
-    public bool CanStop => IsRunning;
-    public bool CanStart => !IsRunning && IsEnabled;
-    public bool CanToggle => IsRunning ? CanStop : CanStart;
+    public bool CanStop => IsEnabled && (IsRunning || RunState == EntryRunState.Indeterminate);
+    public bool CanStart => !IsRunning && IsEnabled && RunState == EntryRunState.NotRunning;
+    public bool CanToggle => CanStop || CanStart;
     public bool CanRestart => IsEnabled;
     public bool CanDelete => !IsProtected || !SystemServiceProtection.RefuseDeletingSystemServices;
+    public bool CanRequestDelete => true;
     public bool CanToggleEnabled => SupportsEnableToggle && (!IsEnabled || !IsProtected);
+    public bool IsIndeterminate => RunState == EntryRunState.Indeterminate;
     public string ToggleEnabledLabel => IsEnabled ? L.T("禁用") : L.T("启用");
     public string ToggleEnabledGlyph => IsEnabled ? "\uE7E8" : "\uE73E";
     public string ToggleEnabledActionName => IsEnabled ? L.T("禁用此启动项") : L.T("启用此启动项");
@@ -169,6 +189,6 @@ public sealed class ManagedEntry
         }
     }
 
-    public string PrimaryActionLabel => IsRunning ? L.T("停止") : L.T("启动");
-    public string PrimaryActionGlyph => IsRunning ? "\uE71A" : "\uE768";
+    public string PrimaryActionLabel => CanStop ? L.T("停止") : L.T("启动");
+    public string PrimaryActionGlyph => CanStop ? "\uE71A" : "\uE768";
 }

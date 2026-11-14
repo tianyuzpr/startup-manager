@@ -36,9 +36,12 @@ public partial class MainWindow : Window
 {
     private readonly StartupScanner _scanner = new();
     private readonly StartupActionService _actions = new();
+    private readonly SnapshotService _snapshots = new();
     private readonly DispatcherTimer _toastTimer;
     private bool _isRefreshing;
     private string? _pendingSelectId;
+    private SnapshotFile? _currentSnapshot;
+    private SnapshotDiff? _lastDiff;
 
     public MainWindow()
     {
@@ -56,6 +59,7 @@ public partial class MainWindow : Window
         };
         _toastTimer.Tick += ToastTimer_Tick;
 
+        DiffButton.IsEnabled = false;
         UpdateThemeButton();
     }
 
@@ -78,6 +82,11 @@ public partial class MainWindow : Window
         {
             var progress = new Progress<string>(message => ViewModel.BusyText = message);
             var result = await Task.Run(() => _scanner.Scan(progress));
+
+            var snapshotResult = await Task.Run(() => _snapshots.Process(result.Entries));
+            _currentSnapshot = snapshotResult.Snapshot;
+            _lastDiff = snapshotResult.Diff;
+            UpdateDiffBadge();
 
             ViewModel.SetEntries(result.Entries, result.Warnings);
             ViewModel.IsAdmin = AdminService.IsAdministrator();
@@ -110,6 +119,28 @@ public partial class MainWindow : Window
         }
     }
 
+    private void Diff_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentSnapshot is null || _lastDiff is null) return;
+
+        var dialog = new DiffWindow(_currentSnapshot, _lastDiff) { Owner = this };
+        if (dialog.ShowDialog() == true && dialog.BaselineApplied)
+        {
+            _lastDiff = null;
+            UpdateDiffBadge();
+        }
+    }
+
+    private void UpdateDiffBadge()
+    {
+        if (DiffBadge is null || DiffBadgeText is null || DiffButton is null) return;
+
+        var count = _lastDiff?.ChangeCount ?? 0;
+        DiffButton.IsEnabled = _currentSnapshot is not null;
+        DiffBadgeText.Text = count > 99 ? "99+" : count.ToString();
+        DiffBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private async Task ExecuteEntryActionAsync(
         ManagedEntry entry,
         string busyText,
@@ -125,9 +156,13 @@ public partial class MainWindow : Window
             var message = await Task.Run(() => action(entry));
             ShowToast(message, error: false);
         }
+        catch (NoMatchingProcessException)
+        {
+            ShowToast(L.T("未找到可匹配进程。"), error: true);
+        }
         catch (Exception ex)
         {
-            ShowToast(ex.Message, error: true);
+            ShowToast(L.F("操作失败：{0}", ex.Message), error: true);
         }
         finally
         {
@@ -143,7 +178,7 @@ public partial class MainWindow : Window
 
         var dialog = new ConfirmDialog(
             L.T("需要管理员权限"),
-            L.F("“{0}”属于系统级项目。要执行此操作，需要以管理员身份重新启动启航。", entry.Name),
+            L.F("“{0}”属于系统级项目。要执行此操作，需要以管理员身份重新启动{1}。", entry.Name, AppInfo.ProductName),
             confirmText: L.T("以管理员身份重启"),
             danger: false,
             detail: L.T("重新启动后，请再次执行刚才的操作。当前窗口会被关闭。"));
@@ -158,44 +193,66 @@ public partial class MainWindow : Window
 
     private async void RestartEntry_Click(object sender, RoutedEventArgs e)
     {
-        var entry = GetEntry(sender);
-        if (entry is null || !EnsureAdminFor(entry)) return;
+        var selected = GetActionEntries(sender);
+        if (selected.Count == 0 || !EnsureAdminFor(selected)) return;
 
-        if (entry.Kind is EntryKind.WindowsService or EntryKind.ScheduledTask)
+        if (selected.Count > 1)
         {
-            var dialog = new ConfirmDialog(
-                L.F("重启“{0}”？", entry.Name),
-                entry.Kind == EntryKind.WindowsService
-                    ? L.T("将先停止该服务，然后立即重新启动。正在使用该服务的程序可能会短暂中断。")
-                    : L.T("将先结束正在运行的任务实例，然后重新触发该计划任务。"),
-                confirmText: L.T("重启"),
-                danger: false);
-            if (dialog.ShowDialog() != true) return;
+            var candidates = selected.Where(item => !item.IsIndeterminate).ToList();
+            var skipped = selected.Count - candidates.Count;
+            if (candidates.Count == 0)
+            {
+                ShowToast(L.T("选中项均为状态未知，已跳过。"), error: true);
+                return;
+            }
+
+            var targets = ConfirmImpact(ImpactOperation.Restart, candidates);
+            skipped += candidates.Count - targets.Count;
+            if (targets.Count == 0) return;
+
+            await ExecuteBatchAsync(targets, L.T("正在批量重启…"), _actions.Restart, skipped);
+            return;
         }
 
-        await ExecuteEntryActionAsync(entry, L.T("正在重启…"), _actions.Restart);
+        var entry = selected[0];
+        var target = ConfirmImpact(ImpactOperation.Restart, entry);
+        if (target is null) return;
+
+        await ExecuteEntryActionAsync(target, L.T("正在重启…"), _actions.Restart);
     }
 
     private async void PrimaryEntry_Click(object sender, RoutedEventArgs e)
     {
-        var entry = GetEntry(sender);
-        if (entry is null || !EnsureAdminFor(entry)) return;
+        var selected = GetActionEntries(sender);
+        if (selected.Count == 0 || !EnsureAdminFor(selected)) return;
 
-        if (entry.IsRunning)
+        if (selected.Count > 1)
         {
-            var dialog = new ConfirmDialog(
-                L.F("停止“{0}”？", entry.Name),
-                entry.Kind switch
-                {
-                    EntryKind.WindowsService => L.T("将向 Windows 服务控制管理器发送停止请求。正在使用该服务的程序可能会中断。"),
-                    EntryKind.ScheduledTask => L.T("将结束该计划任务当前正在运行的实例。"),
-                    _ => L.T("将结束该启动项关联的正在运行进程。未保存的数据可能会丢失。")
-                },
-                confirmText: L.T("停止"),
-                danger: true);
-            if (dialog.ShowDialog() != true) return;
+            var candidates = selected
+                .Where(item => item.CanStop && !item.IsIndeterminate)
+                .ToList();
+            var skipped = selected.Count - candidates.Count;
+            if (candidates.Count == 0)
+            {
+                ShowToast(L.T("没有可停止的选中项（状态未知项已跳过）。"), error: true);
+                return;
+            }
 
-            await ExecuteEntryActionAsync(entry, L.T("正在停止…"), _actions.Terminate);
+            var targets = ConfirmImpact(ImpactOperation.Stop, candidates);
+            skipped += candidates.Count - targets.Count;
+            if (targets.Count == 0) return;
+
+            await ExecuteBatchAsync(targets, L.T("正在批量停止…"), _actions.Terminate, skipped);
+            return;
+        }
+
+        var entry = selected[0];
+        if (entry.CanStop)
+        {
+            var target = ConfirmImpact(ImpactOperation.Stop, entry);
+            if (target is null) return;
+
+            await ExecuteEntryActionAsync(target, L.T("正在停止…"), _actions.Terminate);
         }
         else
         {
@@ -214,72 +271,143 @@ public partial class MainWindow : Window
             return;
         }
 
-        if (!EnsureAdminFor(entry)) return;
-
-        var disabling = entry.IsEnabled;
-        var targetEnabled = !disabling;
-        var detail = entry.Kind switch
+        var selected = GetActionEntries(sender);
+        if (selected.Count > 1)
         {
-            EntryKind.WindowsService => L.T("服务启动类型会被修改；当前运行中的服务进程不会被立即结束。"),
-            EntryKind.ScheduledTask => L.T("计划任务的触发器会被关闭或恢复，当前运行中的实例状态不变。"),
-            _ => L.T("只改变下次登录时是否自动运行，不会结束当前正在运行的进程。")
-        };
+            var enable = !entry.IsEnabled;
+            var operation = enable ? ImpactOperation.Enable : ImpactOperation.Disable;
+            var candidates = selected
+                .Where(item => item.CanToggleEnabled
+                               && !item.IsIndeterminate
+                               && item.IsEnabled == entry.IsEnabled)
+                .ToList();
+            var skipped = selected.Count - candidates.Count;
+            if (candidates.Count == 0)
+            {
+                ShowToast(L.T("没有可执行的选中项。"), error: true);
+                return;
+            }
 
-        var dialog = new ConfirmDialog(
-            disabling ? L.F("禁用“{0}”？", entry.Name) : L.F("启用“{0}”？", entry.Name),
-            disabling
-                ? L.T("禁用后 Windows 将不再自动启动该项目。当前正在运行的进程不会被结束。")
-                : L.T("启用后该项目将在下次登录或开机时恢复自动启动。"),
-            confirmText: disabling ? L.T("禁用启动") : L.T("启用启动"),
-            danger: disabling,
-            detail: detail);
+            if (!EnsureAdminFor(candidates)) return;
 
-        if (dialog.ShowDialog() != true) return;
+            var targets = ConfirmImpact(operation, candidates);
+            skipped += candidates.Count - targets.Count;
+            if (targets.Count == 0) return;
 
-        await ExecuteEntryActionAsync(
-            entry,
-            disabling ? L.T("正在禁用启动…") : L.T("正在启用启动…"),
-            target => _actions.SetEnabled(target, targetEnabled));
-    }
-
-    private async void DeleteEntry_Click(object sender, RoutedEventArgs e)
-    {
-        var entry = GetEntry(sender);
-        if (entry is null) return;
-
-        if (entry.IsProtected && SystemServiceProtection.RefuseDeletingSystemServices)
-        {
-            ShowToast(entry.ProtectedReason ?? L.T("该项目受到保护，不能删除。"), error: true);
+            await ExecuteBatchAsync(
+                targets,
+                enable ? L.T("正在批量启用启动…") : L.T("正在批量禁用启动…"),
+                item => _actions.SetEnabled(item, enable),
+                skipped);
             return;
         }
 
         if (!EnsureAdminFor(entry)) return;
 
-        var message = entry.Kind switch
+        var singleOperation = entry.IsEnabled ? ImpactOperation.Disable : ImpactOperation.Enable;
+        var target = ConfirmImpact(singleOperation, entry);
+        if (target is null) return;
+
+        var singleEnable = singleOperation == ImpactOperation.Enable;
+        await ExecuteEntryActionAsync(
+            target,
+            singleEnable ? L.T("正在启用启动…") : L.T("正在禁用启动…"),
+            item => _actions.SetEnabled(item, singleEnable));
+    }
+
+    private async void DeleteEntry_Click(object sender, RoutedEventArgs e)
+    {
+        var selected = GetActionEntries(sender);
+        if (selected.Count == 0) return;
+
+        if (selected.Count > 1)
         {
-            EntryKind.WindowsService => L.T("将从服务控制管理器中删除该 Windows 服务。该操作不可撤销，服务将从服务列表中移除。"),
-            EntryKind.RegistryRun => L.T("将删除对应的注册表启动值，下次登录不会再自动运行。"),
-            EntryKind.StartupFolder => L.T("将删除启动文件夹中的该项目文件。"),
-            EntryKind.ScheduledTask => L.T("将从任务计划程序中删除该项目。"),
-            _ => L.T("将删除该项目。")
-        };
+            if (selected.Any(item => item.RequiresTypedConfirmation))
+            {
+                ShowToast(L.T("批量删除包含需要逐项输入服务名或任务名的项目，请逐项确认。"), error: true);
+                return;
+            }
 
-        var requiredPhrase = entry.RequiresTypedConfirmation
-            ? entry.ConfirmationPhrase ?? entry.Name
-            : null;
+            var candidates = selected.Where(item => !item.IsIndeterminate).ToList();
+            var skipped = selected.Count - candidates.Count;
+            if (candidates.Count == 0)
+            {
+                ShowToast(L.T("选中项均为状态未知，已跳过。"), error: true);
+                return;
+            }
 
-        var dialog = new ConfirmDialog(
-            L.F("删除“{0}”？", entry.Name),
-            message,
-            confirmText: L.T("删除项目"),
-            danger: true,
-            requiredPhrase: requiredPhrase,
-            detail: entry.CommandDisplay);
+            if (!EnsureAdminFor(candidates)) return;
 
-        if (dialog.ShowDialog() != true) return;
+            var targets = ConfirmImpact(ImpactOperation.Delete, candidates);
+            skipped += candidates.Count - targets.Count;
+            if (targets.Count == 0) return;
 
-        await ExecuteEntryActionAsync(entry, L.T("正在删除…"), _actions.Delete);
+            await ExecuteBatchAsync(targets, L.T("正在批量删除…"), _actions.Delete, skipped);
+            return;
+        }
+
+        var entry = selected[0];
+        if (!EnsureAdminFor(entry)) return;
+
+        var target = ConfirmImpact(ImpactOperation.Delete, entry);
+        if (target is null) return;
+
+        await ExecuteEntryActionAsync(target, L.T("正在删除…"), _actions.Delete);
         ViewModel.SelectedEntry = null;
+    }
+
+    private ManagedEntry? ConfirmImpact(ImpactOperation operation, ManagedEntry entry)
+        => ConfirmImpact(operation, new[] { entry }).FirstOrDefault();
+
+    private IReadOnlyList<ManagedEntry> ConfirmImpact(
+        ImpactOperation operation,
+        IReadOnlyList<ManagedEntry> entries)
+    {
+        var preview = ImpactPreviewService.Build(operation, entries);
+        var dialog = new ImpactPreviewDialog(preview) { Owner = this };
+        if (dialog.ShowDialog() != true || !dialog.Confirmed)
+        {
+            return Array.Empty<ManagedEntry>();
+        }
+
+        return dialog.SelectedItems
+            .Select(item => item.Entry)
+            .Where(item => item is not null)
+            .Select(item => item!)
+            .ToList();
+    }
+
+    private async Task ExecuteBatchAsync(
+        IReadOnlyList<ManagedEntry> entries,
+        string busyText,
+        Func<ManagedEntry, string> action,
+        int skipped)
+    {
+        if (entries.Count == 0) return;
+
+        ViewModel.IsBusy = true;
+        ViewModel.BusyText = busyText;
+
+        var succeeded = 0;
+        var failed = 0;
+        foreach (var entry in entries)
+        {
+            try
+            {
+                await Task.Run(() => action(entry));
+                succeeded++;
+            }
+            catch
+            {
+                failed++;
+            }
+        }
+
+        ViewModel.IsBusy = false;
+        await RefreshAsync();
+        ShowToast(
+            L.F("批量操作完成：成功 {0} 项，失败 {1} 项，跳过 {2} 项。", succeeded, failed, skipped),
+            failed > 0 || succeeded == 0);
     }
 
     private void OpenLocation_Click(object sender, RoutedEventArgs e)
@@ -453,7 +581,7 @@ public partial class MainWindow : Window
     {
         var dialog = new ConfirmDialog(
             L.T("以管理员身份重启？"),
-            L.T("启航会关闭当前窗口并请求 Windows 提权。提权后即可管理 Windows 服务、系统启动任务和所有用户启动项。"),
+            L.F("{0}会关闭当前窗口并请求 Windows 提权。提权后即可管理 Windows 服务、系统启动任务和所有用户启动项。", AppInfo.ProductName),
             confirmText: L.T("重启并提权"),
             danger: false);
         if (dialog.ShowDialog() == true)
@@ -539,6 +667,37 @@ public partial class MainWindow : Window
             WindowBorder.BorderThickness = new Thickness(1);
             MaximizeGlyph.Text = "\uE922";
         }
+    }
+
+    private void EntriesList_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (BatchHint is null || BatchHintText is null) return;
+
+        var count = EntriesList?.SelectedItems.Count ?? 0;
+        BatchHint.Visibility = count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        if (count > 1)
+        {
+            BatchHintText.Text = L.F(
+                "已选择 {0} 项；操作将应用到全部选中项（状态未知项会被跳过）。",
+                count);
+        }
+    }
+
+    private IReadOnlyList<ManagedEntry> GetActionEntries(object sender)
+    {
+        var selected = EntriesList?.SelectedItems
+            .OfType<ManagedEntry>()
+            .ToList() ?? new List<ManagedEntry>();
+        if (selected.Count > 1) return selected;
+
+        var entry = GetEntry(sender);
+        return entry is null ? Array.Empty<ManagedEntry>() : new[] { entry };
+    }
+
+    private bool EnsureAdminFor(IReadOnlyList<ManagedEntry> entries)
+    {
+        var entry = entries.FirstOrDefault(item => !ViewModel.IsAdmin && item.RequiresAdmin);
+        return entry is null || EnsureAdminFor(entry);
     }
 
     private ManagedEntry? GetEntry(object sender)

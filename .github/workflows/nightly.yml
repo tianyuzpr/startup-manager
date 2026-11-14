@@ -13,33 +13,42 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-# Nightly build for Qihang / 启航.
+# Automatic nightly/development build for Qihang / 启航.
 #
 # Design notes:
 # - The schedule is 00:00 UTC every day (08:00 Asia/Shanghai).
 # - A gate job compares the current commit with the last *successfully released*
 #   commit. The state is kept in an immutable Actions cache entry whose key is
 #   unique per run; restore-keys select the newest previous entry.
-# - The build job is skipped entirely when no source commit has changed, so it
+# - The build matrix is skipped entirely when no source commit has changed, so it
 #   will not calculate a version, compile, or create a release.
 # - The state cache is written only after the release has been created
 #   successfully. A failed build or release therefore retries on the next run.
 
-name: Nightly Build
+name: Automatic Build
 
 on:
   schedule:
     # Every day at 00:00 UTC = 08:00 in Asia/Shanghai.
     - cron: '0 0 * * *'
   workflow_dispatch:
+    inputs:
+      channel:
+        description: 'Release channel'
+        required: false
+        default: nightly
+        type: choice
+        options:
+          - nightly
+          - dev
 
-# Never let two nightly runs overlap on the same ref. Queue instead of cancelling.
+# Never let two automatic builds overlap on the same ref. Queue instead of cancelling.
 concurrency:
-  group: nightly-${{ github.ref }}
+  group: automatic-build-${{ github.ref }}
   cancel-in-progress: false
 
 permissions:
-  # Required to create a release and upload its asset.
+  # Required to create a release and upload its assets.
   contents: write
 
 jobs:
@@ -52,26 +61,30 @@ jobs:
     outputs:
       should_build: ${{ steps.state.outputs.should_build }}
       last_commit: ${{ steps.state.outputs.last_commit }}
+      version: ${{ steps.version.outputs.version }}
+      channel: ${{ steps.version.outputs.channel }}
     steps:
-      - name: Restore last nightly build state
+      - name: Restore last automatic build state
         id: restore-state
         uses: actions/cache/restore@v4
         with:
-          # The state directory contains one small file: last-commit.
-          path: .nightly-state
+          # The channel-specific state directory contains one small file: last-commit.
+          path: .build-state-${{ inputs.channel || 'nightly' }}
           # A unique key per run makes the cache immutable. The restore-keys
-          # prefix finds the most recent previous state for this branch.
-          key: nightly-state-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          # prefix finds the most recent previous state for this branch/channel.
+          key: build-state-${{ inputs.channel || 'nightly' }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
           restore-keys: |
-            nightly-state-${{ github.ref_name }}-
+            build-state-${{ inputs.channel || 'nightly' }}-${{ github.ref_name }}-
 
       - name: Compare current commit with last successful build
         id: state
         shell: pwsh
+        env:
+          CHANNEL: ${{ inputs.channel || 'nightly' }}
         run: |
           $ErrorActionPreference = 'Stop'
 
-          $stateFile = Join-Path $env:GITHUB_WORKSPACE '.nightly-state/last-commit'
+          $stateFile = Join-Path $env:GITHUB_WORKSPACE ".build-state-$env:CHANNEL/last-commit"
           $last = ''
           if (Test-Path -LiteralPath $stateFile) {
               $last = (Get-Content -LiteralPath $stateFile -Raw).Trim()
@@ -80,69 +93,44 @@ jobs:
           $current = $env:GITHUB_SHA
           $shouldBuild = $last -ne $current
 
-          # Job outputs are consumed by the build job's `if:` expression.
+          # Job outputs are consumed by the build-matrix job's `if:` expression.
           "last_commit=$last" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           "should_build=$($shouldBuild.ToString().ToLowerInvariant())" |
               Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
           if ($shouldBuild) {
-              Write-Output "Source changed: '$last' -> '$current'. Nightly build will run."
+              Write-Output "Source changed: '$last' -> '$current'. Automatic build will run."
           }
           else {
-              Write-Output "No source changes since '$last'. Skipping the nightly build."
-              "### Nightly build skipped`n`nNo source changes since ``$last``. No version was calculated and no release was created." |
+              Write-Output "No source changes since '$last'. Skipping the automatic build."
+              "### Automatic build skipped`n`nNo source changes since ``$last``. No version was calculated and no release was created." |
                   Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
           }
 
-  # ---------------------------------------------------------------------------
-  # Build: only runs when the gate found a new source commit.
-  # ---------------------------------------------------------------------------
-  build:
-    name: Build and publish nightly
-    needs: check
-    if: needs.check.outputs.should_build == 'true'
-    runs-on: windows-latest
-    timeout-minutes: 30
-    env:
-      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
-      DOTNET_NOLOGO: '1'
-    steps:
-      - name: Check out full history
-        uses: actions/checkout@v4
-        with:
-          # Full history is required for the changelog range.
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Set up .NET 10 SDK
-        uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Calculate nightly version
+      - name: Calculate automatic build version
         id: version
+        if: steps.state.outputs.should_build == 'true'
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ inputs.channel || 'nightly' }}
         run: |
           $ErrorActionPreference = 'Stop'
 
-          # Use UTC because the workflow itself is scheduled in UTC. ISO year is
-          # used so the year, week and weekday always belong to the same ISO week
-          # (important around New Year).
+          $channel = $env:CHANNEL
+          if (-not $channel) { $channel = 'nightly' }
+          if ($channel -notin @('nightly', 'dev')) {
+              throw "Unsupported channel '$channel'. Use nightly or dev."
+          }
+
           $now = [DateTime]::UtcNow
           $isoYear = [System.Globalization.ISOWeek]::GetYear($now)
           $isoWeek = [System.Globalization.ISOWeek]::GetWeekOfYear($now)
           $isoDay = [int]$now.DayOfWeek
-          if ($isoDay -eq 0) { $isoDay = 7 } # Sunday: .NET 0 -> ISO 7
+          if ($isoDay -eq 0) { $isoDay = 7 }
 
-          # Base format: YYwWWdD, e.g. 26w46d1 for Monday of ISO week 46 of 2026.
           $base = '{0:D2}w{1:D2}d{2}' -f ($isoYear % 100), $isoWeek, $isoDay
 
-          # Several builds may happen on the same calendar day. Each release for
-          # that day gets a trailing letter: a, b, c ... z, then aa, ab, ...
-          # The suffix comes from the highest existing tag of the form
-          # "<base><letter>", so a fresh day always starts at "a".
           $existingTags = @()
           try {
               $existingTags = @(gh release list --repo $env:GITHUB_REPOSITORY --limit 200 --json tagName --jq '.[].tagName' 2>$null)
@@ -156,7 +144,7 @@ jobs:
               $existingTags = @()
           }
 
-          $pattern = '^' + [regex]::Escape($base) + '(?<seq>[a-z]+)$'
+          $pattern = '^' + [regex]::Escape($base) + '(?<seq>[a-z]+)(?:\.NIGHTLY)?$'
           $maxSeq = ''
           foreach ($tag in $existingTags) {
               if (-not $tag) { continue }
@@ -164,7 +152,6 @@ jobs:
               if (-not $match.Success) { continue }
 
               $seq = $match.Groups['seq'].Value
-              # Compare by length first so 'aa' ranks above 'z'.
               if ($seq.Length -gt $maxSeq.Length -or
                   ($seq.Length -eq $maxSeq.Length -and [string]::CompareOrdinal($seq, $maxSeq) -gt 0)) {
                   $maxSeq = $seq
@@ -172,7 +159,6 @@ jobs:
           }
 
           if ($maxSeq) {
-              # Increment the letter sequence: a -> b, z -> aa, az -> ba, zz -> aaa.
               $chars = $maxSeq.ToCharArray()
               $i = $chars.Length - 1
               while ($i -ge 0) {
@@ -197,62 +183,375 @@ jobs:
               $sequence = 'a'
           }
 
-          # Full version, e.g. 26w46d6a.NIGHTLY.
-          $version = "$base$sequence.NIGHTLY"
+          $suffix = if ($channel -eq 'nightly') { '.NIGHTLY' } else { '' }
+          $version = "$base$sequence$suffix"
 
-          if ($version -notmatch '^\d{2}w\d{2}d[1-7][a-z]+\.NIGHTLY$') {
-              throw "Calculated version '$version' does not match YYwWWdDLETTER.NIGHTLY."
+          if ($version -notmatch '^\d{2}w\d{2}d[1-7][a-z]+(?:\.NIGHTLY)?$') {
+              throw "Calculated version '$version' does not match the dev/nightly version scheme."
           }
 
-          Write-Output "Nightly version: $version (previous highest sequence: '$maxSeq')"
+          Write-Output "Automatic build version: $version (channel: $channel, previous highest sequence: '$maxSeq')"
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
-          "### Nightly version`n`n**$version**" |
-              Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Append -Encoding utf8
+          "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+
+  build-matrix:
+    name: Build ${{ matrix.type }}
+    needs: check
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: '1'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - type: portable
+            self_contained: true
+            single_file: true
+            ready_to_run: true
+            installer: false
+          - type: normal
+            self_contained: true
+            single_file: false
+            ready_to_run: false
+            installer: true
+          - type: runtimeless
+            self_contained: false
+            single_file: false
+            ready_to_run: false
+            installer: true
+          - type: portable_runtimeless
+            self_contained: false
+            single_file: true
+            ready_to_run: true
+            installer: false
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up .NET 10 SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Install Inno Setup
+        if: matrix.installer
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (Test-Path -LiteralPath $iscc) {
+              Write-Output 'Inno Setup is already installed.'
+              exit 0
+          }
+
+          choco install innosetup --no-progress -y
+          if ($LASTEXITCODE -ne 0) {
+              throw "choco install innosetup failed with exit code $LASTEXITCODE."
+          }
+
+          if (-not (Test-Path -LiteralPath $iscc)) {
+              throw "Inno Setup compiler was not found at '$iscc'."
+          }
+
+      - name: Publish ${{ matrix.type }}
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          TYPE: ${{ matrix.type }}
+          SELF_CONTAINED: ${{ matrix.self_contained }}
+          SINGLE_FILE: ${{ matrix.single_file }}
+          READY_TO_RUN: ${{ matrix.ready_to_run }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $publishRoot = Join-Path $env:GITHUB_WORKSPACE 'publish'
+          if (Test-Path -LiteralPath $publishRoot) {
+              Remove-Item -LiteralPath $publishRoot -Recurse -Force
+          }
+
+          # Build facts (name, version, publisher, runtime) come from
+          # build/app.props. Only the interactive app version is overridden so
+          # dev/nightly builds carry their own YYwWWdDZ label.
+          $props = [xml](Get-Content -LiteralPath 'build/app.props' -Raw)
+          $fileVersion = $props.Project.PropertyGroup.AppFileVersion | Where-Object { $_ } | Select-Object -First 1
+          if (-not $fileVersion) { $fileVersion = '1.0.0.0' }
+
+          $out = Join-Path $publishRoot $env:TYPE
+          dotnet publish src/StartupManager/StartupManager.csproj `
+              -c Release `
+              -r win-x64 `
+              --self-contained $env:SELF_CONTAINED `
+              -p:PublishSingleFile=$env:SINGLE_FILE `
+              -p:IncludeAllContentForSelfExtract=true `
+              -p:InformationalVersion=$env:VERSION `
+              -p:PublishReadyToRun=$env:READY_TO_RUN `
+              -p:FileVersion=$fileVersion `
+              -o $out
+
+          if ($LASTEXITCODE -ne 0) {
+              throw "dotnet publish failed with exit code $LASTEXITCODE for '$env:TYPE'."
+          }
+
+          if (-not (Test-Path -LiteralPath (Join-Path $out 'StartupManager.exe'))) {
+              throw "Expected StartupManager.exe was not produced for '$env:TYPE'."
+          }
+
+      - name: Prepare portable artifact
+        if: matrix.installer == false
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          TYPE: ${{ matrix.type }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          $source = Join-Path (Join-Path $env:GITHUB_WORKSPACE 'publish') "$env:TYPE/StartupManager.exe"
+          if (-not (Test-Path -LiteralPath $source)) {
+              throw "Portable executable '$source' was not found."
+          }
+
+          $target = Join-Path $artifactDir "StartupManager-$env:VERSION-x86_64-$env:TYPE.exe"
+          Copy-Item -LiteralPath $source -Destination $target -Force
+          Write-Output "Prepared portable artifact: $target"
+
+      - name: Build Inno Setup installer
+        if: matrix.installer
+        shell: pwsh
+        env:
+          VERSION: ${{ needs.check.outputs.version }}
+          TYPE: ${{ matrix.type }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $artifactDir = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
+          New-Item -ItemType Directory -Force -Path $artifactDir | Out-Null
+
+          $sourceDir = Join-Path (Join-Path $env:GITHUB_WORKSPACE 'publish') $env:TYPE
+          if (-not (Test-Path -LiteralPath $sourceDir)) {
+              throw "Publish directory '$sourceDir' was not found."
+          }
+
+          $iscc = Join-Path ${env:ProgramFiles(x86)} 'Inno Setup 6\ISCC.exe'
+          if (-not (Test-Path -LiteralPath $iscc)) {
+              throw "Inno Setup compiler was not found at '$iscc'."
+          }
+
+          $runtimeCheck = @'
+          [Code]
+          function IsDotNet10DesktopInstalled: Boolean;
+          var
+            Names: TArrayOfString;
+            I: Integer;
+            FindRec: TFindRec;
+          begin
+            Result := False;
+
+            if RegGetSubkeyNames(HKLM64, 'SOFTWARE\dotnet\Setup\InstalledVersions\x64\sharedfx\Microsoft.WindowsDesktop.App', Names) then
+            begin
+              for I := 0 to GetArrayLength(Names) - 1 do
+              begin
+                if Pos('10.', Names[I]) = 1 then
+                begin
+                  Result := True;
+                  Exit;
+                end;
+              end;
+            end;
+
+            if FindFirst(ExpandConstant('{commonpf64}\dotnet\shared\Microsoft.WindowsDesktop.App\10.*'), FindRec) then
+            begin
+              try
+                repeat
+                  if (FindRec.Attributes and $10) <> 0 then
+                  begin
+                    Result := True;
+                    Exit;
+                  end;
+                until not FindNext(FindRec);
+              finally
+                FindClose(FindRec);
+              end;
+            end;
+          end;
+
+          function InitializeSetup: Boolean;
+          var
+            ErrorCode: Integer;
+          begin
+            Result := True;
+            if not IsDotNet10DesktopInstalled then
+            begin
+              if MsgBox('未检测到 .NET 10 Desktop Runtime。' + #13#10 + #13#10 +
+                        '是否打开微软官方下载页面？安装完成后请重新运行本安装程序。',
+                        mbConfirmation, MB_YESNO) = IDYES then
+              begin
+                ShellExec('open', 'https://dotnet.microsoft.com/download/dotnet/10.0',
+                          '', '', SW_SHOWNORMAL, ewNoWait, ErrorCode);
+              end;
+              Result := False;
+            end;
+          end;
+          '@
+
+          $template = @'
+          #define MyAppName "启航 · 开机启动管理器"
+          #define MyAppVersion "__VERSION__"
+          #define MyAppPublisher "Xiayue"
+          #define MyAppExeName "StartupManager.exe"
+
+          [Setup]
+          AppId={{8F5DBA5A-6C2B-4E67-9EF1-4B0C1C3A8D21}
+          AppName={#MyAppName}
+          AppVersion={#MyAppVersion}
+          AppPublisher={#MyAppPublisher}
+          DefaultDirName={autopf}\{#MyAppName}
+          DefaultGroupName={#MyAppName}
+          DisableProgramGroupPage=yes
+          PrivilegesRequired=admin
+          OutputDir=__ARTIFACT_DIR__
+          OutputBaseFilename=StartupManager-__VERSION__-x86_64-__TYPE__
+          Compression=lzma2
+          SolidCompression=yes
+          WizardStyle=modern
+          ArchitecturesInstallIn64BitMode=x64
+          UninstallDisplayIcon={app}\{#MyAppExeName}
+
+          [Languages]
+          Name: "chinesesimp"; MessagesFile: "compiler:Languages\ChineseSimplified.isl"
+          Name: "english"; MessagesFile: "compiler:Default.isl"
+
+          [Tasks]
+          Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+          [Files]
+          Source: "__SOURCE_DIR__\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+          [Icons]
+          Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+          Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+          [Run]
+          Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+          __CODE__
+          '@
+
+          $code = if ($env:TYPE -eq 'runtimeless') { $runtimeCheck } else { '' }
+          $iss = $template.Replace('__VERSION__', $env:VERSION)
+          $iss = $iss.Replace('__TYPE__', $env:TYPE)
+          $iss = $iss.Replace('__ARTIFACT_DIR__', $artifactDir)
+          $iss = $iss.Replace('__SOURCE_DIR__', $sourceDir)
+          $iss = $iss.Replace('__CODE__', $code)
+
+          $issPath = Join-Path $env:GITHUB_WORKSPACE "installer-$env:TYPE.iss"
+          [System.IO.File]::WriteAllText($issPath, $iss, [System.Text.UTF8Encoding]::new($true))
+
+          & $iscc $issPath
+          if ($LASTEXITCODE -ne 0) {
+              throw "Inno Setup compilation failed with exit code $LASTEXITCODE for '$env:TYPE'."
+          }
+
+          $setup = Join-Path $artifactDir "StartupManager-$env:VERSION-x86_64-$env:TYPE.exe"
+          if (-not (Test-Path -LiteralPath $setup)) {
+              throw "Inno Setup output '$setup' was not produced."
+          }
+
+          Write-Output "Built installer: $setup"
+
+      - name: Upload ${{ matrix.type }} artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: StartupManager-${{ needs.check.outputs.version }}-x86_64-${{ matrix.type }}
+          path: artifacts/StartupManager-${{ needs.check.outputs.version }}-x86_64-${{ matrix.type }}.exe
+          if-no-files-found: error
+
+  create-release:
+    name: Create release
+    needs: [check, build-matrix]
+    if: needs.check.outputs.should_build == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          pattern: StartupManager-*-x86_64-*
+          merge-multiple: true
 
       - name: Generate changelog
         shell: pwsh
         env:
           LAST_COMMIT: ${{ needs.check.outputs.last_commit }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
+          CHANNEL: ${{ needs.check.outputs.channel }}
         run: |
           $ErrorActionPreference = 'Stop'
 
+          $buildTitle = if ($env:CHANNEL -eq 'dev') { 'Development Build' } else { 'Nightly Build' }
           $artifacts = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
           New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
 
           $last = $env:LAST_COMMIT
           $hasLast = $false
 
-          # The previous commit may have disappeared after a force-push. Verify
-          # it exists; otherwise fall back to a bounded initial history.
           if ($last) {
               git cat-file -e "$last^{commit}" 2>$null
               $hasLast = ($LASTEXITCODE -eq 0)
           }
 
           if ($hasLast) {
-              $heading = "Changes since the last nightly build"
+              $heading = "Changes since the last $($env:CHANNEL) build"
               $range = "$last..HEAD"
           }
           else {
-              $heading = "Commit history (initial nightly build)"
+              $heading = "Commit history (initial $($env:CHANNEL) build)"
               $range = "HEAD"
           }
 
-          # Use full history for the range. For an initial build, cap the list to
-          # keep the release body reasonably sized.
           $gitArgs = @('log', $range, '--pretty=format:- %h %s (%an)')
           if (-not $hasLast) { $gitArgs += @('--max-count=200') }
 
           $commits = @(& git @gitArgs)
           if ($commits.Count -eq 0) { $commits = @('- No commits found') }
 
-          $body = @(
-              "# Nightly Build $env:VERSION",
+          $guideLines = @(
+              '## 📦 下载指南 (Download Guide)',
               '',
-              'Automated nightly build of Qihang / 启航.',
+              '本版本提供 4 种不同的分发形态，请根据您的需求选择：',
+              '',
+              '- `StartupManager-{版本号}-x86_64-portable.exe`：**[推荐极客使用]** 自包含单文件绿色版。无需安装，包含 .NET 10 运行时，双击即用。',
+              '- `StartupManager-{版本号}-x86_64-normal.exe`：**[推荐普通用户使用]** 安装包。包含 .NET 10 运行时，支持安装到 `Program Files` 目录，并自动创建快捷方式。',
+              '- `StartupManager-{版本号}-x86_64-runtimeless.exe`：**[轻量安装包]** 不包含 .NET 10 运行时。体积较小，但要求您的电脑已安装 .NET 10 Desktop Runtime（缺失时会提示引导下载）。',
+              '- `StartupManager-{版本号}-x86_64-portable_runtimeless.exe`：**[极致轻量单文件]** 不包含运行时。体积最小，双击即用，要求本机已安装 .NET 10 Desktop Runtime。注意：该单文件版没有安装程序，因此**不包含运行时检测或下载引导**；若缺少运行时，Windows 会直接报错，请先自行安装。',
+              '',
+              '> 💡 **提示**：如果您不知道选哪个，请下载 `normal` 安装包或 `portable` 单文件版。'
+          )
+          $downloadGuide = ($guideLines -join "`n").Replace('{版本号}', $env:VERSION)
+
+          $body = @(
+              $downloadGuide,
+              '',
+              "# $buildTitle $env:VERSION",
+              '',
+              'Automated build of Qihang / 启航.',
               '',
               "**Version:** $env:VERSION",
+              "**Channel:** $env:CHANNEL",
               "**Commit:** $env:GITHUB_SHA",
               "**Built at (UTC):** $([DateTime]::UtcNow.ToString('yyyy-MM-dd HH:mm:ss'))",
               '',
@@ -271,89 +570,59 @@ jobs:
           $body | Set-Content -LiteralPath (Join-Path $artifacts 'release-notes.md') -Encoding utf8
           Write-Output "Wrote changelog with $($commits.Count) commit line(s)."
 
-      - name: Publish self-contained single-file executable
-        shell: pwsh
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          $ErrorActionPreference = 'Stop'
-
-          # Keep the publish directory clean so the single-file output is
-          # deterministic and cannot be confused with an old artefact.
-          if (Test-Path -LiteralPath 'publish') {
-              Remove-Item -LiteralPath 'publish' -Recurse -Force
-          }
-
-          dotnet publish src/StartupManager/StartupManager.csproj `
-              -c Release `
-              -r win-x64 `
-              --self-contained true `
-              -p:PublishSingleFile=true `
-              -p:IncludeAllContentForSelfExtract=true `
-              -o publish
-
-          if ($LASTEXITCODE -ne 0) {
-              throw "dotnet publish failed with exit code $LASTEXITCODE."
-          }
-
-          $source = Join-Path 'publish' 'StartupManager.exe'
-          if (-not (Test-Path -LiteralPath $source)) {
-              throw "Expected publish output '$source' was not produced."
-          }
-
-          $artifacts = Join-Path $env:GITHUB_WORKSPACE 'artifacts'
-          New-Item -ItemType Directory -Force -Path $artifacts | Out-Null
-          $asset = Join-Path $artifacts "StartupManager-$env:VERSION.exe"
-          Copy-Item -LiteralPath $source -Destination $asset -Force
-
-          if (-not (Test-Path -LiteralPath $asset)) {
-              throw "Nightly asset '$asset' was not created."
-          }
-
-          Write-Output "Created nightly asset: $asset"
-
       - name: Create GitHub pre-release
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.check.outputs.version }}
+          CHANNEL: ${{ needs.check.outputs.channel }}
         run: |
-          # Every build of the same day gets its own letter suffix (a, b, c ...),
-          # so this tag must not exist yet. If it does, the version calculation
-          # is stale: fail instead of overwriting an existing release.
+          $ErrorActionPreference = 'Stop'
+          $buildTitle = if ($env:CHANNEL -eq 'dev') { 'Development Build' } else { 'Nightly Build' }
+
           $tag = $env:VERSION
-          $asset = "artifacts/StartupManager-$tag.exe"
           $notes = "artifacts/release-notes.md"
 
-          if (-not (Test-Path -LiteralPath $asset)) { throw "Asset '$asset' is missing." }
           if (-not (Test-Path -LiteralPath $notes)) { throw "Release notes '$notes' are missing." }
+
+          $assetFiles = @(
+              Get-ChildItem -LiteralPath 'artifacts' -Filter 'StartupManager-*-x86_64-*.exe' |
+                  Sort-Object Name |
+                  Select-Object -ExpandProperty FullName
+          )
+          if ($assetFiles.Count -ne 4) {
+              throw "Expected 4 release assets, found $($assetFiles.Count): $($assetFiles -join ', ')"
+          }
 
           gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
               throw "Release '$tag' already exists. Refusing to overwrite it; re-run the workflow to allocate the next letter."
           }
 
-          gh release create $tag $asset `
+          gh release create $tag @assetFiles `
               --repo $env:GITHUB_REPOSITORY `
               --target $env:GITHUB_SHA `
-              --title "Nightly Build - $tag" `
+              --title "$buildTitle - $tag" `
               --notes-file $notes `
               --prerelease
 
           if ($LASTEXITCODE -ne 0) { throw "gh release create failed for '$tag'." }
-          Write-Output "Created pre-release '$tag' with asset '$asset'."
+          Write-Output "Created pre-release '$tag' ($buildTitle) with $($assetFiles.Count) assets."
 
-      - name: Record last successful nightly commit
+      - name: Record last successful build commit
         if: success()
         shell: pwsh
+        env:
+          CHANNEL: ${{ needs.check.outputs.channel }}
         run: |
           $ErrorActionPreference = 'Stop'
-          New-Item -ItemType Directory -Force -Path '.nightly-state' | Out-Null
-          Set-Content -LiteralPath '.nightly-state/last-commit' -Value $env:GITHUB_SHA -Encoding ascii
+          $stateDir = ".build-state-$env:CHANNEL"
+          New-Item -ItemType Directory -Force -Path $stateDir | Out-Null
+          Set-Content -LiteralPath (Join-Path $stateDir 'last-commit') -Value $env:GITHUB_SHA -Encoding ascii
 
-      - name: Save nightly build state
+      - name: Save automatic build state
         if: success()
         uses: actions/cache/save@v4
         with:
-          path: .nightly-state
-          key: nightly-state-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .build-state-${{ needs.check.outputs.channel }}
+          key: build-state-${{ needs.check.outputs.channel }}-${{ github.ref_name }}-${{ github.run_id }}-${{ github.run_attempt }}

@@ -353,6 +353,12 @@ rem start "" "C:\Path\To\YourApp.exe"
             StartServiceImmediately = StartServiceCheck.IsChecked == true
         };
 
+        var preview = new ImpactPreviewDialog(ImpactPreviewService.BuildForAdd(request))
+        {
+            Owner = this
+        };
+        if (preview.ShowDialog() != true || !preview.Confirmed) return;
+
         _creating = true;
         CreateButton.IsEnabled = false;
         CreateButton.Content = L.T("正在创建…");

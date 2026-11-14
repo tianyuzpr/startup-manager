@@ -100,7 +100,7 @@
                       Background="Transparent">
                     <StackPanel>
                         <TextBlock Text="{loc:Loc 新增启动项}" FontSize="19" FontWeight="SemiBold" />
-                        <TextBlock Text="{loc:Loc 脚本、程序或标准 Windows 服务，都可以交给启航托管。}"
+                        <TextBlock Text="{Binding Converter={StaticResource AppInfo}, ConverterParameter=ProductName}"
                                    FontSize="10.5"
                                    Foreground="{DynamicResource MutedBrush}"
                                    Margin="0,4,0,0" />

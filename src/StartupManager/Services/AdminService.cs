@@ -87,6 +87,8 @@ public static class AppPaths
     public static string Scripts { get; } = Path.Combine(Root, "Scripts");
     public static string Logs { get; } = Path.Combine(Root, "Logs");
     public static string Backups { get; } = Path.Combine(Root, "Backups");
+    public static string Snapshots { get; } = Path.Combine(Root, "Snapshots");
+    public static string SnapshotHistory { get; } = Path.Combine(Snapshots, "history");
 
     public static string EnsureDirectory(string path)
     {
