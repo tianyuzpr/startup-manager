@@ -4,6 +4,23 @@
 
 A local startup-item management tool for Windows 10/11. It brings autostart entries scattered across **Windows services, registry Run keys, Startup folders and scheduled tasks** together into one interface, and provides stop, restart, enable, disable, delete, add, settings, language switching, light/dark/system appearance, Danger Zone protection and CSV export.
 
+<div align="center">
+
+<!-- 平台与生态 -->
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows)
+![Framework](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
+![UI](https://img.shields.io/badge/UI-WPF%20(Native)-purple)
+
+<!-- 协议与合规 -->
+![License](https://img.shields.io/badge/license-Apache%202.0-blue?logo=apache)
+![Language](https://img.shields.io/badge/language-C%23%20%2F%20XAML-239120?logo=c-sharp)
+
+<!-- 构建流水线 -->
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=github-actions&logoColor=white)
+![Build](https://img.shields.io/github/actions/workflow/status/tianyuzpr/startup-manager/nightly.yml?style=flat)
+
+</div>
+
 ## Theme preview
 
 Light mode:
