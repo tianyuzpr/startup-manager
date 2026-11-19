@@ -129,7 +129,22 @@ Do not hard-code these values in XAML or C#, and do not add brand-name entries t
 
 ## Commit messages
 
-History contains both Conventional Commits and plain sentences; **use Conventional Commits for new commits**:
+No single format is enforced; both of the following are accepted.
+
+### Plain imperative subject (matches the existing history)
+
+State what the commit does in one imperative sentence, capitalised, without a trailing period:
+
+```text
+Fix blank window after single-file publish
+
+The self-extracting runtime was dropped because ReadyToRun was off in the
+publish profile. Enable it so the output stays a single exe.
+```
+
+### Conventional Commits (optional)
+
+Use this when the change has a clear type or you want generated changelogs:
 
 ```text
 <type>(<scope>): <summary>
@@ -150,8 +165,6 @@ Common types:
 | `refactor` | Behaviour-preserving restructuring |
 | `chore` | Build, dependencies, housekeeping |
 
-Example:
-
 ```text
 fix(scanner): trust Task Scheduler for scheduled-task run state
 
@@ -159,7 +172,12 @@ A same-path process no longer flips a ready task to Running, which
 previously misled the impact preview.
 ```
 
-Wrap body lines at 72 characters, keep the subject under 72 characters and without a trailing period.
+### Applies to both
+
+- Keep the subject under 72 characters and without a trailing period; wrap body lines at 72.
+- The body explains **why** the change was made, not a restatement of the subject.
+- One commit does one thing; split unrelated reformatting or renames out.
+- Every commit carries `Signed-off-by` (see [Sign-off](#sign-off)).
 
 ---
 
@@ -193,7 +211,7 @@ GPG signatures are optional; `Signed-off-by` on every commit is required.
 - [ ] No hard-coded version, product name or path
 - [ ] Risky actions go through `ImpactPreviewService` and write audit logs
 - [ ] `bin/`, `obj/`, `release/`, `temp/` and scratch screenshots are not committed
-- [ ] Commit message follows Conventional Commits and carries `Signed-off-by`
+- [ ] Commit message explains the change and its reason, and carries `Signed-off-by`
 - [ ] Workflow changes parse as valid YAML and every `run` script is syntactically valid
 
 ---

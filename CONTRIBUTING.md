@@ -129,7 +129,22 @@ src/StartupManager/
 
 ## 提交信息规范
 
-本项目历史记录里同时存在 Conventional Commits 与自然语句式提交，**新提交请使用 Conventional Commits**：
+本项目不强制单一格式，以下两种都接受：
+
+### 自然语句式标题（与历史记录一致）
+
+用一句祈使句说清做了什么，首字母大写，不加句号：
+
+```text
+Fix blank window after single-file publish
+
+The self-extracting runtime was dropped because ReadyToRun was off in the
+publish profile. Enable it so the output stays a single exe.
+```
+
+### Conventional Commits（可选）
+
+当改动类型明显、或希望自动生成变更日志时使用：
 
 ```text
 <type>(<scope>): <summary>
@@ -150,8 +165,6 @@ src/StartupManager/
 | `refactor` | 不改变行为的重构 |
 | `chore` | 构建、依赖、杂项 |
 
-示例：
-
 ```text
 fix(scanner): trust Task Scheduler for scheduled-task run state
 
@@ -159,7 +172,12 @@ A same-path process no longer flips a ready task to Running, which
 previously misled the impact preview.
 ```
 
-正文每行控制在 72 字符以内，标题不超过 72 字符，末尾不加句号。
+### 通用要求
+
+- 标题不超过 72 字符，末尾不加句号；正文每行控制在 72 字符以内。
+- 正文说明**为什么改**，而不是重复标题里的“改了什么”。
+- 一个提交只做一件事；把无关的格式化或重命名拆出去。
+- 每个提交都要带 `Signed-off-by`（见 [签名要求](#签名要求)）。
 
 ---
 
@@ -193,7 +211,7 @@ Signed-off-by: Your Name <you@example.com>
 - [ ] 没有硬编码版本号、产品名或路径
 - [ ] 危险操作经过 `ImpactPreviewService` 并记录审计日志
 - [ ] 没有提交 `bin/`、`obj/`、`release/`、`temp/` 或临时截图
-- [ ] 提交信息符合 Conventional Commits 且带 `Signed-off-by`
+- [ ] 提交信息说明清楚改动与原因，并带 `Signed-off-by`
 - [ ] 若涉及工作流改动，YAML 可解析且 `run` 脚本无语法错误
 
 ---
