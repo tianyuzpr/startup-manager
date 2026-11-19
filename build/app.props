@@ -53,7 +53,7 @@
       pre-release: 1.5.0-rc1
   -->
   <PropertyGroup>
-    <AppReleaseChannel Condition="'$(AppReleaseChannel)' == ''">prerelease</AppReleaseChannel>
+    <AppReleaseChannel Condition="'$(AppReleaseChannel)' == ''">stable</AppReleaseChannel>
     <AppVersion>1.5.0</AppVersion>
     <AppFileVersion>1.5.0.0</AppFileVersion>
 
