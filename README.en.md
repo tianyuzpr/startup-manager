@@ -181,6 +181,7 @@ The app starts with **standard privileges** by default:
 - Operation logs are written to `%LOCALAPPDATA%\StartupManager\Logs`.
 - The app never executes commands from startup items automatically; every start/restart must be triggered by the user.
 - All data is processed locally and is never uploaded to the network.
+- See [SECURITY.en.md](SECURITY.en.md) for how to report vulnerabilities, response times and known boundary cases.
 
 ## Running
 
@@ -232,7 +233,7 @@ The app name, version, publisher, copyright, runtime and packaging options all l
 <AppMinimumWindows>Windows 10 1607 (build 14393) or later, x64</AppMinimumWindows>
 ```
 
-Version naming rules:
+### Version naming
 
 | Type | Format | Carries build number |
 |---|---|---|

@@ -641,6 +641,31 @@ jobs:
               throw "Expected 4 release assets, found $($assetFiles.Count): $($assetFiles -join ', ')"
           }
 
+          $checksumPath = Join-Path 'artifacts' 'SHA256SUMS.txt'
+          $assetFiles |
+              ForEach-Object {
+                  $hash = (Get-FileHash -LiteralPath $_ -Algorithm SHA256).Hash.ToLowerInvariant()
+                  "$hash  $(Split-Path -Leaf $_)"
+              } |
+              Set-Content -LiteralPath $checksumPath -Encoding utf8NoBOM
+          Write-Output "Wrote $(Split-Path -Leaf $checksumPath) for $($assetFiles.Count) asset(s)."
+
+          $checksumBlock = (Get-Content -LiteralPath $checksumPath -Encoding utf8) -join "`n"
+          Add-Content -LiteralPath $notes -Encoding utf8 -Value @(
+              '',
+              '## 校验和 · Checksums',
+              '',
+              '`SHA256SUMS.txt` 包含下列附件的 SHA-256；校验方法：`Get-FileHash -Algorithm SHA256 <文件>`。',
+              '',
+              'The `SHA256SUMS.txt` asset lists the SHA-256 of every download below; verify with `Get-FileHash -Algorithm SHA256 <file>`.',
+              '',
+              '```text',
+              $checksumBlock,
+              '```'
+          )
+
+          $assetFiles += $checksumPath
+
           gh release view $tag --repo $env:GITHUB_REPOSITORY --json tagName 2>$null
           if ($LASTEXITCODE -eq 0) {
               throw "Release '$tag' already exists. Refusing to overwrite it; re-run the workflow to allocate the next letter."

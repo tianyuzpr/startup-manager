@@ -181,6 +181,7 @@
 - 操作日志写入 `%LOCALAPPDATA%\StartupManager\Logs`。
 - 不会自动执行启动项里的命令；所有启动/重启都必须由用户点击触发。
 - 所有数据都在本地处理，不上传网络。
+- 漏洞报告方式、响应时限与已知边界见 [SECURITY.md](SECURITY.md)。
 
 ## 运行
 
@@ -231,7 +232,7 @@ dotnet publish src/StartupManager/StartupManager.csproj -c Release -r win-x64 --
 <AppMinimumWindows>Windows 10 1607 (build 14393) or later, x64</AppMinimumWindows>
 ```
 
-版本命名规则：
+### 版本命名规则
 
 | 类型 | 格式 | 是否带 build 编号 |
 |---|---|---|
