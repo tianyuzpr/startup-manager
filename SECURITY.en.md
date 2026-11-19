@@ -40,12 +40,12 @@ Security updates are provided only for builds downloaded from **GitHub Releases*
 
 | Line | Example | Security updates |
 | --- | --- | --- |
-| `v1.5.x` | `v1.5.0-BUILD2647` | ✅ Yes, all security fixes |
-| `v1.4.x` | `v1.4.1-BUILD2646` | ✅ Critical / High only, until 30 days after `v1.5.0` ships |
-| `< v1.4.0`, pre-releases | `v1.5.0-rc1-BUILD2647` | ❌ No; upgrade to a stable release |
-| Dev / nightly builds | `26w46d6a`, `26w46d6a.NIGHTLY` | ❌ No; these are test artefacts and are never a security baseline |
+| `v1.5.x` | `v1.5.0-BUILD2647-STABLE` | ✅ Yes, all security fixes |
+| `v1.4.x` | `v1.4.1-BUILD2646-STABLE` | ✅ Critical / High only, until 30 days after `v1.5.0` ships |
+| `< v1.4.0`, pre-releases | `v1.5.0-rc1-BUILD2646` | ❌ No; upgrade to a stable release |
+| Dev / nightly builds | `26w47d4a`, `26w47d4a.NIGHTLY` | ❌ No; these are test artefacts and are never a security baseline |
 
-Version numbering follows the [README](README.en.md#version-naming): stable builds use `vX.Y.Z-BUILDYYWW`, pre-releases use `vX.Y.0-rcZ-BUILDYYWW`, and dev/nightly builds carry no build number. Builds not listed above are unsupported by default.
+Version numbering follows the [README](README.en.md#version-naming): stable releases are tagged `vX.Y.Z-BUILDYYWW-STABLE` (release notes and file names drop the suffix and use `vX.Y.Z-BUILDYYWW`), pre-releases use `vX.Y.0-rcZ-BUILDYYWW`, and dev/nightly builds carry no build number. Builds not listed above are unsupported by default.
 
 All security advisories are published under **Security → Advisories** in the repository; security fixes mentioned in release notes are recorded there as well.
 
@@ -103,7 +103,7 @@ This is the **Private Vulnerability Reporting** channel: only maintainers can se
 
 Please include as much of the following as you can (missing items do not block triage):
 
-1. **Affected version**: the exact file name or version from the release page (e.g. `v1.5.0-BUILD2647`, `StartupManager-1.5.0-BUILD2647-x86_64-portable.exe`).
+1. **Affected version**: the exact tag, file name or version from the release page (e.g. `v1.5.0-BUILD2647-STABLE`, `StartupManager-1.5.0-BUILD2647-x86_64-portable.exe`).
 2. **Checksum**: the `SHA256SUMS.txt` value from the release page, or the output of `Get-FileHash -Algorithm SHA256` on the asset, so we can confirm your build is not repackaged.
 3. **Windows version and privilege context**: the exact Windows build, whether the app was started elevated, and the UAC setting.
 4. **Reproduction steps**: the minimal steps, including the original state of the relevant startup items, what you did, and expected versus actual results.
