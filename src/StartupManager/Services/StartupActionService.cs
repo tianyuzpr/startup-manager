@@ -63,9 +63,24 @@ public sealed class StartupActionService
                         L.T("没有发现正在运行的关联进程，可能它已经停止。"));
                 }
 
-                var killed = KillProcesses(matches);
-                Audit(entry, $"KILL PROCESS x{killed}");
-                return L.F("已结束 {0} 个关联进程。", killed);
+                var result = KillProcesses(matches);
+                Audit(entry, $"KILL PROCESS x{result.Killed}");
+                if (result.Killed == 0 && result.Errors.Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        L.F("无法结束关联进程。{0}", string.Join(L.T("；"), result.Errors.Take(3))));
+                }
+
+                if (result.Errors.Count > 0)
+                {
+                    return L.F(
+                        "已结束 {0} 个关联进程，{1} 个未能结束：{2}",
+                        result.Killed,
+                        result.Errors.Count,
+                        string.Join(L.T("；"), result.Errors.Take(3)));
+                }
+
+                return L.F("已结束 {0} 个关联进程。", result.Killed);
             }
 
             default:
@@ -130,12 +145,32 @@ public sealed class StartupActionService
                 }
 
                 var matches = FindRunningProcesses(entry);
-                var killed = matches.Count > 0 ? KillProcesses(matches) : 0;
+                var result = matches.Count > 0
+                    ? KillProcesses(matches)
+                    : (Killed: 0, Errors: new List<string>());
+
+                if (result.Killed == 0 && result.Errors.Count > 0)
+                {
+                    throw new InvalidOperationException(
+                        L.F("无法结束关联进程。{0}", string.Join(L.T("；"), result.Errors.Take(3))));
+                }
+
                 Thread.Sleep(350);
                 Launch(entry);
-                Audit(entry, $"RESTART (killed {killed})");
-                return killed > 0
-                    ? L.F("已结束 {0} 个进程并重新启动“{1}”。", killed, entry.Name)
+                Audit(entry, $"RESTART (killed {result.Killed})");
+
+                if (result.Errors.Count > 0)
+                {
+                    return L.F(
+                        "已结束 {0} 个进程并重新启动“{1}”，但 {2} 个未能结束：{3}",
+                        result.Killed,
+                        entry.Name,
+                        result.Errors.Count,
+                        string.Join(L.T("；"), result.Errors.Take(3)));
+                }
+
+                return result.Killed > 0
+                    ? L.F("已结束 {0} 个进程并重新启动“{1}”。", result.Killed, entry.Name)
                     : L.F("“{0}”之前未在运行，已直接启动。", entry.Name);
             }
 
@@ -296,7 +331,7 @@ public sealed class StartupActionService
         Process.Start(startInfo);
     }
 
-    private static int KillProcesses(IReadOnlyList<ProcessRecord> matches)
+    private static (int Killed, List<string> Errors) KillProcesses(IReadOnlyList<ProcessRecord> matches)
     {
         var killed = 0;
         var errors = new List<string>();
@@ -328,13 +363,7 @@ public sealed class StartupActionService
             }
         }
 
-        if (killed == 0 && errors.Count > 0)
-        {
-            throw new InvalidOperationException(
-                L.F("无法结束关联进程。{0}", string.Join(L.T("；"), errors.Take(3))));
-        }
-
-        return killed;
+        return (killed, errors);
     }
 
     private static void RequireAdminIfNeeded(ManagedEntry entry)

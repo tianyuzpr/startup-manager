@@ -15,6 +15,7 @@
  */
 using System.Reflection;
 using System.Xml.Linq;
+using StartupManager.Localization;
 
 namespace StartupManager.Services;
 
@@ -30,9 +31,19 @@ public static class AppInfo
     private static readonly Lazy<IReadOnlyDictionary<string, string>> Values =
         new(Load, LazyThreadSafetyMode.ExecutionAndPublication);
 
-    public static string DisplayName => Get("AppDisplayName", "启航 · 开机启动管理器");
+    public static string DisplayName => Get(
+        L.IsEnglish ? "AppDisplayNameEn" : "AppDisplayName",
+        L.IsEnglish ? "Qihang · Startup Manager" : "启航 · 开机启动管理器");
 
-    public static string ProductName => Get("AppProductName", "启航");
+    public static string ProductName => Get(
+        L.IsEnglish ? "AppProductNameEn" : "AppProductName",
+        L.IsEnglish ? "Qihang" : "启航");
+
+    public static string AddTagline => Get(
+        L.IsEnglish ? "AppAddTaglineEn" : "AppAddTaglineZh",
+        L.IsEnglish
+            ? "Scripts, programs and standard Windows services can all be managed by Qihang."
+            : "脚本、程序或标准 Windows 服务，都可以交给启航托管。");
 
     public static string TaglineZh => Get("AppTaglineZh", "本地运行，数据不上传");
 

@@ -334,7 +334,11 @@ public sealed class StartupScanner
     {
         var parsed = CommandLineParser.Parse(task.CommandLine);
         var matches = processes.Match(parsed.ExecutablePath, parsed.ScriptPath);
-        var isRunning = task.State == 4 || matches.Count > 0;
+
+        // Task Scheduler is authoritative for whether a task is running. A
+        // same-path process may belong to another instance and must not flip
+        // the task to Running on its own.
+        var isRunning = task.State == 4;
 
         var state = task.State == 1 || !task.IsEnabled
             ? EntryRuntimeState.Disabled
@@ -343,8 +347,10 @@ public sealed class StartupScanner
                 : EntryRuntimeState.Stopped;
 
         var stateDetail = L.F("任务状态：{0}", ScheduledTaskManager.StateLabel(task.State));
-        var evidence = isRunning && matches.Count > 0
-            ? L.F("PID {0} · {1}", string.Join(", ", matches.Select(m => m.Id)), task.CommandLine)
+        var evidence = isRunning
+            ? matches.Count > 0
+                ? L.F("PID {0} · {1}", string.Join(", ", matches.Select(m => m.Id)), task.CommandLine)
+                : L.F("任务状态：{0}", ScheduledTaskManager.StateLabel(task.State))
             : L.F("未在可观测进程中发现匹配项（任务状态：{0}）", ScheduledTaskManager.StateLabel(task.State));
 
         var systemTask = task.FullPath.StartsWith(@"\Microsoft\", StringComparison.OrdinalIgnoreCase);
@@ -379,7 +385,9 @@ public sealed class StartupScanner
             MatchEvidence = evidence,
             State = state,
             StateDetail = stateDetail,
-            ProcessIds = matches.Select(m => m.Id).ToList(),
+            ProcessIds = isRunning
+                ? matches.Select(m => m.Id).ToList()
+                : Array.Empty<int>(),
             TaskPath = task.FullPath,
             RequiresTypedConfirmation = systemTask,
             ConfirmationPhrase = systemTask ? task.Name : null

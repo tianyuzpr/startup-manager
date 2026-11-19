@@ -458,7 +458,7 @@ jobs:
           Compression=lzma2
           SolidCompression=yes
           WizardStyle=modern
-          ArchitecturesInstallIn64BitMode=x64
+          ArchitecturesInstallIn64BitMode=x64compatible
           UninstallDisplayIcon={app}\{#MyAppExeName}
 
           [Languages]
@@ -575,7 +575,18 @@ jobs:
               '- `StartupManager-{版本号}-x86_64-runtimeless.exe`：**[轻量安装包]** 不包含 .NET 10 运行时。体积较小，但要求您的电脑已安装 .NET 10 Desktop Runtime（缺失时会提示引导下载）。',
               '- `StartupManager-{版本号}-x86_64-portable_runtimeless.exe`：**[极致轻量单文件]** 不包含运行时。体积最小，双击即用，要求本机已安装 .NET 10 Desktop Runtime。注意：该单文件版没有安装程序，因此**不包含运行时检测或下载引导**；若缺少运行时，Windows 会直接报错，请先自行安装。',
               '',
-              '> 💡 **提示**：如果您不知道选哪个，请下载 `normal` 安装包或 `portable` 单文件版。'
+              '> 💡 **提示**：如果您不知道选哪个，请下载 `normal` 安装包或 `portable` 单文件版。',
+              '',
+              '**English**',
+              '',
+              'This release provides four distribution formats:',
+              '',
+              '- `StartupManager-{版本号}-x86_64-portable.exe`: **[Recommended for power users]** Self-contained single file. No installation; includes the .NET 10 runtime and runs on double-click.',
+              '- `StartupManager-{版本号}-x86_64-normal.exe`: **[Recommended for most users]** Installer. Includes the .NET 10 runtime, installs to `Program Files`, and creates shortcuts.',
+              '- `StartupManager-{版本号}-x86_64-runtimeless.exe`: **[Lightweight installer]** Does not include the .NET 10 runtime. Smaller download; requires .NET 10 Desktop Runtime (offers the download when missing).',
+              '- `StartupManager-{版本号}-x86_64-portable_runtimeless.exe`: **[Minimal single file]** No runtime. Smallest download; requires .NET 10 Desktop Runtime. Note: this single file has no installer, so it does **not** include runtime detection or a download prompt; if the runtime is missing, Windows reports an error—install it first.',
+              '',
+              '> 💡 **Tip:** If you are unsure, download the `normal` installer or the `portable` single file.'
           )
           $downloadGuide = ($guideLines -join "`n").Replace('{版本号}', $env:VERSION)
 

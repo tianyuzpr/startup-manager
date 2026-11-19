@@ -58,7 +58,14 @@ public sealed class SnapshotService
     {
         if (!File.Exists(LatestPath)) return null;
         var json = File.ReadAllText(LatestPath);
-        return JsonSerializer.Deserialize<SnapshotFile>(json, JsonOptions);
+        var snapshot = JsonSerializer.Deserialize<SnapshotFile>(json, JsonOptions);
+        if (snapshot is null) return null;
+
+        // A hand-edited or partially written file can contain
+        // "entries": null. Treat that as an empty baseline instead of
+        // failing every subsequent scan.
+        snapshot.Entries ??= new List<SnapshotEntry>();
+        return snapshot;
     }
 
     public static SnapshotFile Capture(IReadOnlyList<ManagedEntry> entries)
@@ -73,10 +80,10 @@ public sealed class SnapshotService
 
     public static SnapshotDiff ComputeDiff(SnapshotFile previous, SnapshotFile current)
     {
-        var oldEntries = previous.Entries
+        var oldEntries = (previous.Entries ?? new List<SnapshotEntry>())
             .GroupBy(e => e.StableId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
-        var newEntries = current.Entries
+        var newEntries = (current.Entries ?? new List<SnapshotEntry>())
             .GroupBy(e => e.StableId, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(g => g.Key, g => g.First(), StringComparer.OrdinalIgnoreCase);
 

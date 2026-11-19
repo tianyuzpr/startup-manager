@@ -22,8 +22,9 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:shell="clr-namespace:System.Windows.Shell;assembly=PresentationFramework"
         xmlns:models="clr-namespace:StartupManager.Models"
+        xmlns:services="clr-namespace:StartupManager.Services"
         mc:Ignorable="d"
-        Title="{Binding Converter={StaticResource AppInfo}, ConverterParameter=DisplayName}"
+        Title="{Binding Source={x:Static services:AppInfoBinding.Current}, Path=DisplayName}"
         Width="1360"
         Height="860"
         MinWidth="1120"
@@ -91,7 +92,7 @@
                             </Viewbox>
                         </Border>
                         <StackPanel Margin="12,2,0,0">
-                            <TextBlock Text="{Binding Converter={StaticResource AppInfo}, ConverterParameter=ProductName}"
+                            <TextBlock Text="{Binding Source={x:Static services:AppInfoBinding.Current}, Path=ProductName}"
                                        Foreground="{DynamicResource OnAccentBrush}"
                                        FontSize="19"
                                        FontWeight="SemiBold" />
@@ -337,7 +338,7 @@
                             </StackPanel>
                         </Border>
 
-                        <TextBlock Text="{Binding Converter={StaticResource AppInfo}, ConverterParameter=Footer}"
+                        <TextBlock Text="{Binding Source={x:Static services:AppInfoBinding.Current}, Path=Footer}"
                                    Foreground="{DynamicResource SidebarVersionForegroundBrush}"
                                    FontSize="9"
                                    Margin="4,14,0,0" />

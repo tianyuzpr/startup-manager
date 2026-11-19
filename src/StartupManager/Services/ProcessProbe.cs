@@ -68,28 +68,6 @@ public sealed class ProcessSnapshot
                         matches[process.Id] = process;
                     }
                 }
-
-                // Store/aliased apps (for example Windows 11 Notepad) often execute
-                // from a different package path than the one configured in Run.
-                // Fall back to the image name for non-system hosts, but never for
-                // generic hosts such as svchost.exe.
-                if (matches.Count == 0 && !CommandLineParser.IsGenericHost(executable))
-                {
-                    var imageName = Path.GetFileNameWithoutExtension(executable);
-                    if (imageName.Length >= 3)
-                    {
-                    foreach (var process in Processes)
-                    {
-                        if (string.Equals(
-                                Path.GetFileNameWithoutExtension(process.Name),
-                                imageName,
-                                StringComparison.OrdinalIgnoreCase))
-                        {
-                            matches[process.Id] = process;
-                        }
-                    }
-                    }
-                }
             }
         }
 

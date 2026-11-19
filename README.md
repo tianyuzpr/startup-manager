@@ -197,12 +197,16 @@ dotnet publish src/StartupManager/StartupManager.csproj -c Release -r win-x64 --
 
 ```xml
 <AppDisplayName>启航 · 开机启动管理器</AppDisplayName>
+<AppDisplayNameEn>Qihang · Startup Manager</AppDisplayNameEn>
 <AppProductName>启航</AppProductName>
+<AppProductNameEn>Qihang</AppProductNameEn>
 <AppTaglineZh>本地运行，数据不上传</AppTaglineZh>
 <AppTaglineEn>Local only, data stays on this PC</AppTaglineEn>
+<AppAddTaglineZh>脚本、程序或标准 Windows 服务，都可以交给启航托管。</AppAddTaglineZh>
+<AppAddTaglineEn>Scripts, programs and standard Windows services can all be managed by Qihang.</AppAddTaglineEn>
 <AppReleaseChannel>prerelease</AppReleaseChannel>  <!-- stable / prerelease / dev / nightly -->
 <AppVersion>1.5.0-rc1</AppVersion>        <!-- 时点版本，不包含 -BUILDYYWW -->
-<AppBuildNumber>BUILD2646</AppBuildNumber><!-- 仅 stable/prerelease 追加；YYWW 为 ISO 年/周 -->
+<AppBuildNumber>BUILD2647</AppBuildNumber><!-- 仅 stable/prerelease 追加；YYWW 为 ISO 年/周 -->
 <AppFileVersion>1.5.0.0</AppFileVersion>  <!-- 必须是纯数字 -->
 <AppCopyright>Copyright © 2026 Xiayue. Apache License 2.0.</AppCopyright>
 <AppCompany>Xiayue</AppCompany>
@@ -224,7 +228,7 @@ dotnet publish src/StartupManager/StartupManager.csproj -c Release -r win-x64 --
 生效方式：
 
 - **编译期**：`StartupManager.csproj` 导入该文件，程序集名称、标题、产品、版本、公司、版权都来自这里，文件属性里的版本随之变化。`stable` / `prerelease` 会自动把 `AppVersion` 和 `AppBuildNumber` 拼成完整版本；`dev` / `nightly` 不追加 build 编号。
-- **运行期**：同一文件作为嵌入资源打入程序，`Services/AppInfo.cs` 读取程序集信息后驱动界面：窗口标题、侧栏品牌名、底部版本行（`v1.5.0-rc1-BUILD2646  ·  本地运行，数据不上传`）、新增对话框名称、提权提示、计划任务作者说明等。
+- **运行期**：同一文件作为嵌入资源打入程序，`Services/AppInfo.cs` 读取程序集信息后驱动界面：窗口标题、侧栏品牌名、底部版本行（`v1.5.0-rc1-BUILD2647  ·  本地运行，数据不上传`）、新增对话框名称、提权提示、计划任务作者说明等。
 - 修改后直接重新 `dotnet build` / `dotnet publish` 即可，无需改任何 XAML 或 C# 文件。
 
 > `Services/ScheduledTaskManager.cs` 里的 `<Task version="1.4">` 是 Windows 任务计划 XML 架构版本，不属于应用版本，请勿修改。

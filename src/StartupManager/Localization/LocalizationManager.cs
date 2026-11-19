@@ -434,6 +434,8 @@ public sealed class LocalizationManager : INotifyPropertyChanged
         ["任务会以 SYSTEM 身份在开机时运行，无法与桌面交互。"] = "The task runs as SYSTEM at boot and cannot interact with the desktop.",
         ["未找到可匹配进程。"] = "No matching process was found.",
         ["操作失败：{0}"] = "Operation failed: {0}",
+        ["已结束 {0} 个关联进程，{1} 个未能结束：{2}"] = "Ended {0} associated processes; {1} could not be ended: {2}",
+        ["已结束 {0} 个进程并重新启动“{1}”，但 {2} 个未能结束：{3}"] = "Ended {0} processes and restarted “{1}”; {2} could not be ended: {3}",
         ["已选择 {0} 项；操作将应用到全部选中项（状态未知项会被跳过）。"] = "Selected {0} items; the action applies to all selected items (unknown-state items are skipped).",
         ["选中项均为状态未知，已跳过。"] = "All selected items have unknown state and were skipped.",
         ["没有可停止的选中项（状态未知项已跳过）。"] = "None of the selected items can be stopped (unknown-state items were skipped).",

@@ -198,12 +198,16 @@ The app name, version, publisher, copyright, runtime and packaging options all l
 
 ```xml
 <AppDisplayName>启航 · 开机启动管理器</AppDisplayName>
+<AppDisplayNameEn>Qihang · Startup Manager</AppDisplayNameEn>
 <AppProductName>启航</AppProductName>
+<AppProductNameEn>Qihang</AppProductNameEn>
 <AppTaglineZh>本地运行，数据不上传</AppTaglineZh>
 <AppTaglineEn>Local only, data stays on this PC</AppTaglineEn>
+<AppAddTaglineZh>脚本、程序或标准 Windows 服务，都可以交给启航托管。</AppAddTaglineZh>
+<AppAddTaglineEn>Scripts, programs and standard Windows services can all be managed by Qihang.</AppAddTaglineEn>
 <AppReleaseChannel>prerelease</AppReleaseChannel>  <!-- stable / prerelease / dev / nightly -->
 <AppVersion>1.5.0-rc1</AppVersion>        <!-- point version, without -BUILDYYWW -->
-<AppBuildNumber>BUILD2646</AppBuildNumber><!-- stable/prerelease only; YYWW = ISO year/week -->
+<AppBuildNumber>BUILD2647</AppBuildNumber><!-- stable/prerelease only; YYWW = ISO year/week -->
 <AppFileVersion>1.5.0.0</AppFileVersion>  <!-- numeric only -->
 <AppCopyright>Copyright © 2026 Xiayue. Apache License 2.0.</AppCopyright>
 <AppCompany>Xiayue</AppCompany>
@@ -225,7 +229,7 @@ The automatic build workflow supports both `nightly` and `dev` channels. When ca
 How it takes effect:
 
 - **Build time:** `StartupManager.csproj` imports the file, so the assembly name, title, product, version, company and copyright come from it, and the version shown in file properties follows automatically. `stable` / `prerelease` append `-BUILDYYWW`; `dev` / `nightly` never carry a build number.
-- **Run time:** the same file is embedded as a resource. `Services/AppInfo.cs` reads the assembly information to drive the window title, the sidebar brand, the footer line (`v1.5.0-rc1-BUILD2646  ·  Local only, data stays on this PC`), the add dialog heading, elevation messages and the scheduled-task author note.
+- **Run time:** the same file is embedded as a resource. `Services/AppInfo.cs` reads the assembly information to drive the window title, the sidebar brand, the footer line (`v1.5.0-rc1-BUILD2647  ·  Local only, data stays on this PC`), the add dialog heading, elevation messages and the scheduled-task author note.
 - After editing, just run `dotnet build` / `dotnet publish` again.
 
 > `<Task version="1.4">` in `Services/ScheduledTaskManager.cs` is the Windows Task Scheduler XML schema version, not the app version. Leave it alone.

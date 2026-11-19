@@ -136,7 +136,7 @@ public partial class MainWindow : Window
         if (DiffBadge is null || DiffBadgeText is null || DiffButton is null) return;
 
         var count = _lastDiff?.ChangeCount ?? 0;
-        DiffButton.IsEnabled = _currentSnapshot is not null;
+        DiffButton.IsEnabled = _lastDiff is not null;
         DiffBadgeText.Text = count > 99 ? "99+" : count.ToString();
         DiffBadge.Visibility = count > 0 ? Visibility.Visible : Visibility.Collapsed;
     }
@@ -322,17 +322,17 @@ public partial class MainWindow : Window
 
         if (selected.Count > 1)
         {
-            if (selected.Any(item => item.RequiresTypedConfirmation))
-            {
-                ShowToast(L.T("批量删除包含需要逐项输入服务名或任务名的项目，请逐项确认。"), error: true);
-                return;
-            }
-
             var candidates = selected.Where(item => !item.IsIndeterminate).ToList();
             var skipped = selected.Count - candidates.Count;
             if (candidates.Count == 0)
             {
                 ShowToast(L.T("选中项均为状态未知，已跳过。"), error: true);
+                return;
+            }
+
+            if (candidates.Any(item => item.RequiresTypedConfirmation))
+            {
+                ShowToast(L.T("批量删除包含需要逐项输入服务名或任务名的项目，请逐项确认。"), error: true);
                 return;
             }
 
