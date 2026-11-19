@@ -295,3 +295,9 @@ docs/                   # Screenshots
 - Runtime state depends on process path/command-line matching. Scripts wrapped by a custom launcher may not be recognised accurately.
 - Deleting a Windows service is permanent; critical services are protected, but confirm before deleting any non-critical service.
 - The interface is available in Simplified Chinese and British English and can be switched in Settings.
+
+## Contributing
+
+- Read [CONTRIBUTING.en.md](CONTRIBUTING.en.md) before opening issues or sending changes.
+- Participation in discussions is governed by [CODE_OF_CONDUCT.en.md](CODE_OF_CONDUCT.en.md).
+- Report vulnerabilities privately as described in [SECURITY.en.md](SECURITY.en.md); do not open a public issue.

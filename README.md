@@ -294,3 +294,9 @@ docs/                   # 截图
 - 运行状态依赖进程路径/命令行匹配。使用自定义启动器包装的脚本可能无法准确识别。
 - 删除 Windows 服务是永久操作；关键服务会被保护，但非关键服务请确认后再删。
 - 界面支持简体中文与英式英语，可在设置中切换。
+
+## 参与贡献
+
+- 提问、提交改动前请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)。
+- 参与讨论请遵守 [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)。
+- 发现安全漏洞请通过 [SECURITY.md](SECURITY.md) 中的私有渠道上报，不要开公开 Issue。
