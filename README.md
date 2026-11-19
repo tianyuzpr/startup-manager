@@ -4,6 +4,23 @@
 
 一个面向 Windows 10/11 的本地启动项管理工具。它把散落在 **Windows 服务、注册表 Run、启动文件夹、计划任务** 里的开机自启动项目集中到一个界面中，并提供停止、重启、启用、禁用、删除、新增、设置、语言切换、亮色/暗黑/跟随系统外观、危险模式保护和 CSV 导出能力。
 
+<div align="center">
+
+<!-- 平台与生态 -->
+![Platform](https://img.shields.io/badge/platform-Windows%2010%20%7C%2011-0078D6?logo=windows)
+![Framework](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
+![UI](https://img.shields.io/badge/UI-WPF%20(Native)-purple)
+
+<!-- 协议与合规 -->
+![License](https://img.shields.io/badge/license-Apache%202.0-blue?logo=apache)
+![Language](https://img.shields.io/badge/language-C%23%20%2F%20XAML-239120?logo=c-sharp)
+
+<!-- 构建流水线 -->
+![CI](https://img.shields.io/badge/CI-GitHub%20Actions-2088FF?logo=github-actions&logoColor=white)
+![Build](https://img.shields.io/github/actions/workflow/status/tianyuzpr/startup-manager/nightly.yml?style=flat)
+
+</div>
+
 ## 主题预览
 
 浅色模式：
